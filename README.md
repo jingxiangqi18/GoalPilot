@@ -4,7 +4,7 @@ GoalPilot 是一个面向个人目标管理的 Agentic 应用，计划使用 Goo
 
 ## 当前阶段：ADK 技术验证
 
-当前仓库只完成项目初始化和最小 ADK Spike：Spring Boot 可以构造带 Spring Bean 工具的 Google ADK `LlmAgent`，并通过自动化测试验证工具已注册。真实 Gemini 调用需要配置 `GEMINI_API_KEY`，将在下一步完成。
+当前仓库已完成最小 ADK Spike：Spring Boot 可以构造带 Spring Bean 工具的 Google ADK `LlmAgent`，并通过自动化测试验证工具已注册。配置 `GOOGLE_API_KEY` 后，可调用真实 Gemini 并让模型调用该工具。
 
 此阶段没有用户数据，也尚未接入数据库；为了方便验证 Spike，安全配置暂时放行本地请求。接入 JWT 前不得部署或保存真实用户数据。
 
@@ -20,6 +20,7 @@ mvn spring-boot:run
 ```text
 GET http://localhost:8080/actuator/health
 GET http://localhost:8080/api/spike/adk/status
+POST http://localhost:8080/api/spike/adk/run
 ```
 
 ## 当前目录
@@ -32,4 +33,4 @@ docs/      架构、评测与比赛材料
 
 详细复用声明见 [PRE_EXISTING_WORK.md](PRE_EXISTING_WORK.md)。
 
-> `GEMINI_API_KEY` 不能提交到仓库；变量名称参考 [.env.example](.env.example)。
+> `GOOGLE_API_KEY` 不能提交到仓库；Google ADK 使用该变量读取 Gemini API Key。变量名称参考 [.env.example](.env.example)。

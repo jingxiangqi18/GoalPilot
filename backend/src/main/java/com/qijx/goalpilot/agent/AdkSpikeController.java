@@ -14,12 +14,15 @@ import java.util.Map;
 public class AdkSpikeController {
 
     private final LlmAgent spikeAgent;
+    private final AdkSpikeService adkSpikeService;
     private final String model;
 
     public AdkSpikeController(
             LlmAgent spikeAgent,
+            AdkSpikeService adkSpikeService,
             @Value("${goalpilot.agent.model:gemini-3.5-flash-lite}") String model) {
         this.spikeAgent = spikeAgent;
+        this.adkSpikeService = adkSpikeService;
         this.model = model;
     }
 
@@ -35,7 +38,7 @@ public class AdkSpikeController {
     }
 
     @PostMapping("/run")
-    public AdkSpikeService.AdkSpikeResult run(AdkSpikeService adkSpikeService) {
+    public AdkSpikeService.AdkSpikeResult run() {
         return adkSpikeService.run();
     }
 

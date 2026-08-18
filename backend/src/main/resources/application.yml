@@ -4,7 +4,6 @@ spring:
   autoconfigure:
     # MySQL is intentionally not configured until the next implementation step.
     # Keeping the dependency now lets the project structure stay stable while
-    # allowing this ADK-only Spike to start without a local database.
     exclude:
       - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
 
@@ -16,4 +15,4 @@ management:
 
 goalpilot:
   agent:
-    model: ${GOALPILOT_AGENT_MODEL:gemini-3.5-flash-lite}
+    model: ${}

@@ -43,16 +43,16 @@ public class GoalAnalysisService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标信息不能为空");
         }
 
-        String analysis = chatClient.prompt()
+        GoalAnalysisResponse analysis = chatClient.prompt()
                 .system(SYSTEM_PROMPT)
                 .user(normalizedGoalText)
                 .call()
-                .content();
+                .entity(GoalAnalysisResponse.class);
 
-        if(analysis == null || analysis.isBlank()){
+        if(analysis == null || analysis.goalSummary() == null || analysis.goalSummary().isBlank() || analysis.knownInformation() == null || analysis.missingInformation() == null){
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY , "目标分析失败");
         }
 
-        return new GoalAnalysisResponse(analysis.trim());
+        return analysis;
     }
 }

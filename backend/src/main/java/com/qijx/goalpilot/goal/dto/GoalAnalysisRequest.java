@@ -9,5 +9,4 @@ public record GoalAnalysisRequest(
     @Size(max = 1000, message = "目标信息不能超过1000个字符")
     String goalText
 ){
-    
 }

@@ -1,18 +1,27 @@
 spring:
   application:
     name: goalpilot
+
   autoconfigure:
     # MySQL is intentionally not configured until the next implementation step.
     # Keeping the dependency now lets the project structure stay stable while
     exclude:
       - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+  
+  ai:
+    model:
+      chat: openai
+
+    openai:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:}
+
+      chat:
+        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+        max-retries: 2
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
-
-goalpilot:
-  agent:
-    model: ${}

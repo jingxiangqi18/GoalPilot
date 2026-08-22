@@ -8,6 +8,7 @@ public record GoalAnalysisResponse(
     String goalSummary,
     List<String> knownInformation,
     List<String> missingInformation,
-    GoalReadiness readiness
+    GoalReadiness readiness,
+    List<String> clarificationQuestions
 ){   
 }

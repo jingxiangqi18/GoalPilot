@@ -20,7 +20,7 @@ public class GoalAnalysisService {
 
             请完成：
             1. 用清晰的话重新简述用户目标
-            2. knownInformation 至少包含一项从用户目标中确认的信息。
+            2. 提取用户已经提供的时间、范围、限制和期望等信息，knownInformation 至少包含一项从用户目标中确认的信息。
             3. 只识别会显著影响计划生成、必须由用户补充的关键缺失信息。
             4. 判断当前信息是否足以生成一份合理的初步执行计划。
             5. 如果缺失的信息会显著改变计划内容，readiness 返回 NEEDS_CLARIFICATION。
@@ -108,7 +108,7 @@ public class GoalAnalysisService {
             return false;
         }
 
-        //缺失和追问的问题可以是空白，但需要返回
+        //缺失信息和澄清问题列表可以为空，但列表本身不能为 null
         if(analysis.missingInformation() == null
                 || analysis.clarificationQuestions() == null){
             return false;

@@ -1,6 +1,8 @@
 package com.qijx.goalpilot.goal.service;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.http.HttpStatus;
@@ -9,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.qijx.goalpilot.goal.domain.GoalReadiness;
 import com.qijx.goalpilot.goal.dto.GoalAnalysisResponse;
+import com.qijx.goalpilot.goal.dto.GoalClarificationAnswer;
 
 @Service
 public class GoalAnalysisService {
@@ -45,22 +48,28 @@ public class GoalAnalysisService {
         this.chatClient = chatClientBuilder.build();
     }
 
+    //分析用户输入的目标
     public GoalAnalysisResponse analyzeGoal(String goalText){
         String normalizedGoalText = normalizeGoalText(goalText);
 
-        GoalAnalysisResponse analysis = chatClient.prompt()
-                .system(SYSTEM_PROMPT)
-                .user(normalizedGoalText)
-                .call()
-                .entity(GoalAnalysisResponse.class);
-
-        if(!isValidAnalysisResponse(analysis)){
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "分析结果无效");
-        }
+        GoalAnalysisResponse analysis = requestGoalAnalysis(normalizedGoalText);
 
         return analysis;
     }
 
+    public GoalAnalysisResponse clarifyGoal(String goalText, List<GoalClarificationAnswer> clarificationHistory){
+        String normalizedGoalText = normalizeGoalText(goalText);
+
+        validateClarificationHistory(clarificationHistory);
+
+        String userPrompt = buildClarificationUserPrompt(normalizedGoalText, clarificationHistory);
+
+        GoalAnalysisResponse analysis = requestGoalAnalysis(userPrompt);
+
+        return analysis;
+    }
+
+    //标准化输入的目标，避免空内容
     private String normalizeGoalText(String goalText){
         if(goalText == null || goalText.isBlank()){
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标不能为空");
@@ -69,6 +78,7 @@ public class GoalAnalysisService {
         return goalText.trim();
     }
 
+    //校验是否为有效的分析回答
     private boolean isValidAnalysisResponse(GoalAnalysisResponse analysis){
         if(!hasValidBaseStructure(analysis)){
             return false;
@@ -162,5 +172,80 @@ public class GoalAnalysisService {
         }
 
         return true;
+    }
+
+    private void validateClarificationHistory(List<GoalClarificationAnswer> clarificationHistory){
+        if(clarificationHistory == null
+            || clarificationHistory.isEmpty()
+            || clarificationHistory.size() > 10){
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "澄清回答数量必须在1到10项之间");
+        }
+
+        Set<String> questions = new HashSet<>();
+
+        for(GoalClarificationAnswer clarification : clarificationHistory){
+            if(clarification == null
+                || clarification.question() == null
+                || clarification.question().isBlank()
+                || clarification.answer() == null
+                || clarification.answer().isBlank()
+            ){
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "澄清问题和回答不能为空");
+            }
+
+            String normalizedQuestion = clarification.question().trim();
+
+            if(!questions.add(normalizedQuestion)){
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能重复提交同一个澄清问题");
+            }
+        }
+    }
+
+    private String buildClarificationUserPrompt(String normalizedGoalText, List<GoalClarificationAnswer> clarificationHistory){
+        StringBuilder promptBuilder = new StringBuilder();
+
+        promptBuilder
+                .append("原始目标：\n")
+                .append(normalizedGoalText)
+                .append("\n\n")
+                .append("用户已经确认补充的信息：\n\n");
+
+        for(int index = 0; index < clarificationHistory.size(); index++){
+            GoalClarificationAnswer clarification = clarificationHistory.get(index);
+
+            promptBuilder
+                    .append("问题 ")
+                    .append(index + 1)
+                    .append("：\n")
+                    .append(clarification.question().trim())
+                    .append("\n")
+                    .append("回答 ")
+                    .append(index + 1)
+                    .append("： \n")
+                    .append(clarification.answer().trim())
+                    .append("\n\n");
+        }
+
+        promptBuilder.append("""
+                请结合原始目标和所有补充回答，重新分析目标。
+                用户回答是用户最新确认的信息；如果回答与原始目标存在冲突，以最新回答为准。
+                只进行目标分析，不要生成执行计划。
+                """);
+
+        return promptBuilder.toString();
+    }
+
+    private GoalAnalysisResponse requestGoalAnalysis(String userPrompt){
+        GoalAnalysisResponse analysis = chatClient.prompt()
+                .system(SYSTEM_PROMPT)
+                .user(userPrompt)
+                .call()
+                .entity(GoalAnalysisResponse.class);
+
+        if(!isValidAnalysisResponse(analysis)){
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "分析结果出错");
+        }
+
+        return analysis;
     }
 }

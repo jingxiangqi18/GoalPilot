@@ -51,8 +51,19 @@ curl -X POST http://localhost:8080/api/goals/analyze \
 
 ```text
 backend/   Spring Boot + Spring AI 后端
-frontend/  后续创建的 Vue 3 演示界面
+frontend/  Vue 3 + Vite 目标分析演示界面
 docs/      项目架构说明
 ```
+
+前端本地启动：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+浏览器访问 `http://localhost:5173`，开发服务器会将 `/api` 请求代理到默认的
+`http://localhost:8080` 后端服务。
 
 > 不要向仓库提交真实 API Key。可配置的环境变量名称参考 [.env.example](.env.example)。

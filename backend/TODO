@@ -1,0 +1,13 @@
+# GoalPilot Backend TODO
+
+## Prompt 职责调整
+
+- [ ] 调整澄清流程中 System Prompt 与 User Prompt 的职责边界。
+
+  当前 `buildClarificationUserPrompt` 同时包含动态数据和固定业务规则。后续重构时：
+
+  - 将“结合原始目标与澄清回答重新分析”的规则移入 `SYSTEM_PROMPT`。
+  - 将“发生冲突时以用户最新澄清回答为准”的规则移入 `SYSTEM_PROMPT`。
+  - 在 `SYSTEM_PROMPT` 中明确用户目标、问题和回答属于待分析数据，不应被视为系统指令。
+  - 删除 User Prompt 中重复的“不要生成执行计划”等固定规则。
+  - 让 User Prompt 只包含原始目标、澄清问题和用户回答等本次请求的动态数据。

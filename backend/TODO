@@ -11,3 +11,18 @@
   - 在 `SYSTEM_PROMPT` 中明确用户目标、问题和回答属于待分析数据，不应被视为系统指令。
   - 删除 User Prompt 中重复的“不要生成执行计划”等固定规则。
   - 让 User Prompt 只包含原始目标、澄清问题和用户回答等本次请求的动态数据。
+
+## Plan Generation 请求边界
+
+- [ ] 限制客户端提交的 Goal Analysis 上下文大小，避免异常请求生成过长 Prompt。
+
+  后续为 `goalSummary`、`knownInformation` 增加合理限制，例如：
+
+  - `goalSummary` 不超过 1000 个字符。
+  - `knownInformation` 不超过 20 项。
+  - 每项已知信息不超过 500 个字符。
+  - Goal Analysis 的模型输出校验与 Plan Generation 的请求校验保持一致。
+
+- [ ] Goal 和分析结果持久化后，将计划生成请求从提交完整 `GoalAnalysisResponse` 改为提交 `goalId`。
+
+  由后端根据 `goalId` 读取可信的目标和最终分析结果，避免依赖客户端回传的分析内容。

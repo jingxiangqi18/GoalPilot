@@ -23,12 +23,33 @@ HTTP POST /api/goals/analyze
 → GoalAnalysisService
 → Spring AI ChatClient
 → DeepSeek
+→ Structured Output 映射
 → Java 检查模型返回内容
 → GoalAnalysisResponse
-→ HTTP 200 response
+→ READY 或 NEEDS_CLARIFICATION
 ```
 
-当前 Goal Analysis 使用一次同步模型调用并返回普通文本。它还不是 Agent：没有工具调用、循环决策、会话记忆或自主执行。
+```text
+NEEDS_CLARIFICATION
+→ HTTP POST /api/goals/clarify
+→ 提交原始目标和澄清回答
+→ GoalAnalysisService 重新分析
+→ GoalAnalysisResponse
+```
+
+```text
+READY
+→ HTTP POST /api/plans/generate
+→ PlanGenerationController
+→ PlanGenerationService 校验计划生成前置条件
+→ Spring AI ChatClient
+→ DeepSeek
+→ Structured Output 映射
+→ Java 校验阶段和任务结构
+→ PlanGenerationResponse
+```
+
+当前 Goal Analysis、Clarification 和 Plan Generation 都采用同步模型调用。它们还不是完整 Agent：没有工具调用、循环决策、会话记忆或自主执行。
 
 ## 分层原则
 
@@ -53,18 +74,20 @@ Controller 和 DTO 不暴露 `ChatClient`、`ChatResponse` 等 Spring AI 类型�
 - 尚未保存 Goal 或分析结果。
 - 尚未启用 MySQL 数据源。
 - 尚未接入 JWT，当前安全配置仅用于本地开发。
-- 尚未使用 Structured Output、Tool Calling、Chat Memory 或 RAG。
+- Goal Analysis 和 Plan Generation 已使用 Structured Output，并由 Java 校验模型输出。
+- 尚未使用 Tool Calling、Chat Memory、Workflow 或 RAG。
 - 本地网络如果需要代理，应通过开发环境或 JVM 启动参数配置，不写入业务配置并提交。
 
 ## 下一阶段
 
 ```text
-普通文本 Goal Analysis
-→ Structured Output
-→ 信息充分性判断
-→ 澄清问题
+Goal Analysis
+→ Clarification
 → Goal Ready
-→ Plan Generation
+→ Initial Plan Generation
+→ 用户确认
+→ Goal / Plan 持久化
+→ Plan Version
 ```
 
-下一步只实现 Structured Output：把模型结果映射为包含目标概述、已知信息和缺失信息的 Java 数据结构，并由 Java 校验结构是否可用。
+当前生成的 Plan 是尚未持久化的初步建议。下一步先验证完整 API 链路，再设计用户确认以及 Goal、Plan 和 Plan Version 的持久化边界；在此之前不提前引入 Tool Calling、Memory 或复杂 Agent Workflow。

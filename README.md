@@ -4,19 +4,21 @@ GoalPilot 是一个面向个人目标管理的 AI 应用，目标是构建“目
 
 后端采用 Java、Spring Boot 和 Spring AI，通过 OpenAI 兼容接口接入 DeepSeek。业务模型保持为普通 Java 类型，不依赖具体的大模型供应商或 Spring AI 类型。
 
-## 当前阶段：基础 Goal Analysis
+## 当前阶段：目标理解与初步计划生成
 
-当前仓库已经完成第一个可运行的 Goal Analysis 功能：后端接收用户的自然语言目标，通过 Spring AI `ChatClient` 调用 DeepSeek，并返回目标概述、已知信息和缺失信息组成的文本分析结果。
+当前后端已经实现从自然语言目标到初步执行计划的基础链路：使用 Spring AI `ChatClient` 调用 DeepSeek，通过 Structured Output 映射为 GoalPilot 自己的 Java DTO，并在 Service 中校验模型输出是否符合业务约束。
 
-已完成并验证的接口：
+当前已实现的接口：
 
 ```text
 POST http://localhost:8080/api/goals/analyze
+POST http://localhost:8080/api/goals/clarify
+POST http://localhost:8080/api/plans/generate
 ```
 
-当前分析结果还是普通文本。下一步将使用 Spring AI Structured Output，把分析结果转换为稳定的 Java 数据结构，再继续实现信息充分性判断和澄清问题。
+目标分析会返回目标概述、已知信息、缺失信息、信息充分性状态和最多 3 个澄清问题。用户补充回答后可以重新分析；当状态为 `READY` 时，可以生成包含阶段、阶段目标、时间范围、具体任务和完成标准的结构化初步计划。
 
-当前阶段尚未保存 Goal 或分析结果，也尚未接入数据库。为了方便本地开发，安全配置暂时允许所有请求；接入 JWT 前不得部署为公开服务或保存真实用户数据。
+当前 Goal、分析结果和 Plan 仍然只存在于单次请求中，尚未接入数据库或计划版本。为了方便本地开发，安全配置暂时允许所有请求；接入 JWT 前不得部署为公开服务或保存真实用户数据。
 
 ## 本地启动
 
@@ -45,6 +47,27 @@ Goal Analysis 测试：
 curl -X POST http://localhost:8080/api/goals/analyze \
   -H "Content-Type: application/json" \
   -d '{"goalText":"我想在三个月内完成一个适合找 Java 后端实习的项目"}'
+```
+
+Plan Generation 测试需要提交一个状态为 `READY` 的最终分析结果：
+
+```bash
+curl -X POST http://localhost:8080/api/plans/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "goalText":"我想在三个月内完成一个适合找 Java 后端实习的项目",
+    "goalAnalysis":{
+      "goalSummary":"三个月内完成一个适合 Java 后端求职展示的项目",
+      "knownInformation":[
+        "目标方向是 Java 后端",
+        "完成期限是三个月",
+        "项目需要用于求职展示"
+      ],
+      "missingInformation":[],
+      "readiness":"READY",
+      "clarificationQuestions":[]
+    }
+  }'
 ```
 
 ## 当前目录

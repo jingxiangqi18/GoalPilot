@@ -8,3 +8,5 @@ node_modules/
 !.env.example
 *.iml
 /backend/AGENTS.md
+/backend/GOAL
+goalpilot.session.sql

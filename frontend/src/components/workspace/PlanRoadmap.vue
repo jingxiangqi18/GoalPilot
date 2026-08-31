@@ -81,7 +81,7 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
   grid-template-columns: 54px minmax(0, 1fr) auto;
   gap: 17px;
   align-items: center;
-  border-top: 2px solid #555b51;
+  border-top: 1px solid var(--line-strong);
 }
 
 .heading-index {
@@ -89,15 +89,15 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
   height: 48px;
   display: grid;
   place-items: center;
-  color: #fff;
-  background: #455643;
+  color: var(--paper);
+  background: var(--moss-700);
   border-radius: 12px;
   font-family: var(--serif);
   font-size: 20px;
 }
 
 .heading-copy > span {
-  color: #a94f35;
+  color: var(--coral-700);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .1em;
@@ -105,7 +105,7 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
 
 .heading-copy h2 {
   margin: 4px 0 3px;
-  color: #20241e;
+  color: var(--ink);
   font-family: var(--serif);
   font-size: clamp(36px, 3.5vw, 48px);
   font-weight: 600;
@@ -114,7 +114,7 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
 
 .heading-copy p {
   margin: 0;
-  color: #60635a;
+  color: var(--ink-600);
   font-size: 13px;
 }
 
@@ -125,16 +125,16 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
 
 .plan-stats span {
   padding: 9px 12px;
-  color: #484d44;
-  background: #fffdf8;
-  border: 1px solid #aaa498;
+  color: var(--ink-700);
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
   border-radius: 9px;
   font-size: 12px;
 }
 
 .plan-stats strong {
   margin-right: 3px;
-  color: #a94f35;
+  color: var(--coral-700);
   font-size: 17px;
 }
 
@@ -143,11 +143,11 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
   display: grid;
   grid-template-columns: 110px 1fr;
   gap: 24px;
-  color: #fff;
-  background: #c56345;
-  border: 1px solid #a94f35;
+  color: var(--paper);
+  background: var(--coral-600);
+  border: 1px solid var(--coral-700);
   border-radius: 15px;
-  box-shadow: 0 9px 24px rgba(75, 51, 42, .08);
+  box-shadow: var(--shadow-sm);
 }
 
 .plan-summary > span {
@@ -184,9 +184,9 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
   height: 44px;
   display: grid;
   place-items: center;
-  color: #fff;
-  background: #455643;
-  border: 3px solid #dfe4da;
+  color: var(--paper);
+  background: var(--moss-700);
+  border: 3px solid var(--moss-200);
   border-radius: 50%;
   font-family: var(--serif);
   font-size: 17px;
@@ -194,10 +194,10 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
 
 .stage-card {
   overflow: hidden;
-  background: #fffdf8;
-  border: 1px solid #aaa498;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
   border-radius: 15px;
-  box-shadow: 0 9px 24px rgba(45,48,41,.05);
+  box-shadow: var(--shadow-sm);
 }
 
 .stage-card > header {
@@ -206,18 +206,18 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  border-bottom: 1px solid #bbb6aa;
+  border-bottom: 1px solid var(--line-strong);
 }
 
 .stage-card > header > div > span {
-  color: #a94f35;
+  color: var(--coral-700);
   font-size: 11px;
   font-weight: 700;
 }
 
 .stage-card h3 {
   margin: 5px 0 0;
-  color: #252922;
+  color: var(--ink);
   font-family: var(--serif);
   font-size: 27px;
   line-height: 1;
@@ -225,9 +225,9 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
 
 .time-range {
   padding: 8px 11px;
-  color: #395037;
-  background: #e4ebdf;
-  border: 1px solid #afbea9;
+  color: var(--moss-800);
+  background: var(--moss-100);
+  border: 1px solid var(--moss-300);
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
@@ -239,18 +239,18 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
   display: grid;
   grid-template-columns: 82px 1fr;
   gap: 16px;
-  background: #ede8de;
-  border-bottom: 1px solid #bbb6aa;
+  background: var(--canvas);
+  border-bottom: 1px solid var(--line-strong);
 }
 
 .stage-objective strong {
-  color: #5d6158;
+  color: var(--ink-600);
   font-size: 12px;
 }
 
 .stage-objective p {
   margin: 0;
-  color: #41463e;
+  color: var(--ink-700);
   font-size: 14px;
   line-height: 1.55;
 }
@@ -267,24 +267,24 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
 }
 
 .task-card + .task-card {
-  border-top: 1px solid #c4beb2;
+  border-top: 1px solid var(--line);
 }
 
 .task-number {
-  color: #a94f35;
+  color: var(--coral-700);
   font-family: var(--serif);
   font-size: 15px;
 }
 
 .task-content h4 {
   margin: 0;
-  color: #2d312a;
+  color: var(--ink);
   font-size: 15px;
 }
 
 .task-content > p {
   margin: 8px 0 0;
-  color: #565a51;
+  color: var(--ink-600);
   font-size: 13px;
   line-height: 1.65;
 }
@@ -295,9 +295,9 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  color: #344732;
-  background: #e4ebdf;
-  border: 1px solid #b7c2b1;
+  color: var(--moss-800);
+  background: var(--moss-100);
+  border: 1px solid var(--moss-300);
   border-radius: 8px;
 }
 
@@ -307,8 +307,8 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  color: white;
-  background: #455643;
+  color: var(--paper);
+  background: var(--moss-700);
   border-radius: 50%;
   font-size: 11px;
 }
@@ -330,14 +330,14 @@ const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + 
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  background: #fffdf8;
-  border: 1px solid #bbb6aa;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
   border-radius: 14px;
 }
 
-.plan-footer strong { color: #2e332b; font-family: var(--serif); font-size: 19px; }
-.plan-footer p { margin: 3px 0 0; color: #60635a; font-size: 12px; }
-.plan-footer button { min-height: 40px; padding: 0 15px; color: #fff; background: #3f503d; border: 1px solid #344332; border-radius: 8px; font-size: 12px; font-weight: 600; }
+.plan-footer strong { color: var(--ink); font-family: var(--serif); font-size: 19px; }
+.plan-footer p { margin: 3px 0 0; color: var(--ink-600); font-size: 12px; }
+.plan-footer button { min-height: 40px; padding: 0 15px; color: var(--paper); background: var(--moss-800); border: 1px solid var(--moss-900); border-radius: 8px; font-size: 12px; font-weight: 600; }
 
 @media (max-width: 760px) {
   .module-heading { grid-template-columns: 45px 1fr; }

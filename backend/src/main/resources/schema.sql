@@ -14,3 +14,22 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS goals(
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    goal_text VARCHAR(1000) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+    priority VARCHAR(20),
+    deadline DATETIME,
+    success_criteria TEXT,
+    constraint_text TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_goals_user
+        FOREIGN KEY (user_id) REFERENCES users(id),
+
+    INDEX idx_goals_user_created_at (user_id, created_at)
+);

@@ -1,20 +1,22 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
-import { analyzeGoal, clarifyGoal } from '../api/goal'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { analyzeGoal, clarifyGoal, createGoal, getGoalDetails, getGoals } from '../api/goal'
 import { generatePlan } from '../api/plan'
 import WorkspaceSidebar from './workspace/WorkspaceSidebar.vue'
 import GoalComposer from './workspace/GoalComposer.vue'
 import AnalysisResult from './workspace/AnalysisResult.vue'
 import PlanRoadmap from './workspace/PlanRoadmap.vue'
+import GoalLibrary from './workspace/GoalLibrary.vue'
+import GoalDetailDrawer from './workspace/GoalDetailDrawer.vue'
 
-const props = defineProps({
-  user: { type: Object, required: true },
-})
-
+const props = defineProps({ user: { type: Object, required: true } })
 defineEmits(['logout'])
 
+const activeView = ref('create')
 const goalText = ref('')
 const submittedGoal = ref('')
+const activeGoalId = ref(null)
+const activeSavedText = ref('')
 const result = ref(null)
 const plan = ref(null)
 const errorMessage = ref('')
@@ -23,12 +25,19 @@ const activeRequest = ref(null)
 const clarificationHistory = ref([])
 const clarificationAnswers = ref([])
 
+const goalItems = ref([])
+const goalPage = ref(1)
+const goalTotal = ref(0)
+const goalTotalPages = ref(0)
+const goalListLoading = ref(false)
+const goalListError = ref('')
+const detailOpen = ref(false)
+const detailLoading = ref(false)
+const selectedGoal = ref(null)
+
 const userInitial = computed(() => props.user.username?.charAt(0).toUpperCase() || 'G')
 const todayLabel = computed(() => new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  weekday: 'long',
+  month: 'long', day: 'numeric', weekday: 'long',
 }).format(new Date()))
 const activeStep = computed(() => {
   if (plan.value || result.value?.readiness === 'READY') return 3
@@ -76,6 +85,22 @@ function scrollToSection(id) {
   nextTick(() => document.querySelector(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 
+async function loadGoalPage(page = goalPage.value) {
+  goalListLoading.value = true
+  goalListError.value = ''
+  try {
+    const data = await getGoals(page, 9)
+    goalItems.value = Array.isArray(data?.items) ? data.items : []
+    goalPage.value = Number(data?.page) || page
+    goalTotal.value = Number(data?.total) || 0
+    goalTotalPages.value = Number(data?.totalPages) || 0
+  } catch (error) {
+    goalListError.value = error instanceof Error ? error.message : '目标列表加载失败。'
+  } finally {
+    goalListLoading.value = false
+  }
+}
+
 async function submitGoal() {
   const normalized = goalText.value.trim()
   if (!normalized || normalized.length > 1000 || activeRequest.value) return
@@ -84,6 +109,13 @@ async function submitGoal() {
   errorMessage.value = ''
 
   try {
+    if (!activeGoalId.value || normalized !== activeSavedText.value) {
+      const savedGoal = await createGoal(normalized)
+      activeGoalId.value = savedGoal.id
+      activeSavedText.value = savedGoal.goalText || normalized
+      loadGoalPage(1)
+    }
+
     result.value = normalizeResult(await analyzeGoal(normalized))
     submittedGoal.value = normalized
     plan.value = null
@@ -91,7 +123,7 @@ async function submitGoal() {
     clarificationAnswers.value = result.value.clarificationQuestions.map(() => '')
     scrollToSection('#analysis')
   } catch (error) {
-    setRequestError('目标分析没有完成', error)
+    setRequestError(activeGoalId.value ? '目标已保存，但分析没有完成' : '目标保存或分析没有完成', error)
   } finally {
     activeRequest.value = null
   }
@@ -99,14 +131,12 @@ async function submitGoal() {
 
 async function submitClarification() {
   if (activeRequest.value || !result.value) return
-
   const newAnswers = result.value.clarificationQuestions
     .map((question, index) => ({ question, answer: clarificationAnswers.value[index]?.trim() }))
     .filter((item) => item.answer)
-
   if (!newAnswers.length) return
-  const updatedHistory = [...clarificationHistory.value, ...newAnswers]
 
+  const updatedHistory = [...clarificationHistory.value, ...newAnswers]
   if (updatedHistory.length > 10) {
     errorTitle.value = '无法继续补充'
     errorMessage.value = '澄清记录最多支持 10 项，请重新提交一个信息更完整的目标。'
@@ -115,7 +145,6 @@ async function submitClarification() {
 
   activeRequest.value = 'clarification'
   errorMessage.value = ''
-
   try {
     result.value = normalizeResult(await clarifyGoal(submittedGoal.value, updatedHistory))
     clarificationHistory.value = updatedHistory
@@ -131,10 +160,8 @@ async function submitClarification() {
 
 async function createPlan() {
   if (activeRequest.value || result.value?.readiness !== 'READY') return
-
   activeRequest.value = 'plan'
   errorMessage.value = ''
-
   try {
     plan.value = normalizePlan(await generatePlan(submittedGoal.value, result.value))
     scrollToSection('#plan')
@@ -145,170 +172,203 @@ async function createPlan() {
   }
 }
 
-function resetAll() {
+function clearJourney() {
   goalText.value = ''
   submittedGoal.value = ''
+  activeGoalId.value = null
+  activeSavedText.value = ''
   result.value = null
   plan.value = null
   errorMessage.value = ''
   clarificationHistory.value = []
   clarificationAnswers.value = []
+}
+
+function startNewGoal() {
+  clearJourney()
+  activeView.value = 'create'
+  detailOpen.value = false
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
+
+function resetAll() {
+  startNewGoal()
+}
+
+function navigate(view) {
+  activeView.value = view
+  detailOpen.value = false
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+  if (view === 'library' && !goalItems.value.length && !goalListLoading.value) loadGoalPage(1)
+}
+
+async function openGoalDetails(goalId) {
+  detailOpen.value = true
+  detailLoading.value = true
+  selectedGoal.value = null
+  try {
+    selectedGoal.value = await getGoalDetails(goalId)
+  } catch (error) {
+    detailOpen.value = false
+    goalListError.value = error instanceof Error ? error.message : '目标详情加载失败。'
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+function continueGoal(goal) {
+  goalText.value = goal.goalText || ''
+  submittedGoal.value = ''
+  activeGoalId.value = goal.id
+  activeSavedText.value = goal.goalText || ''
+  result.value = null
+  plan.value = null
+  errorMessage.value = ''
+  clarificationHistory.value = []
+  clarificationAnswers.value = []
+  detailOpen.value = false
+  activeView.value = 'create'
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+  nextTick(() => document.querySelector('#goal-input')?.focus())
+}
+
+onMounted(() => loadGoalPage(1))
 </script>
 
 <template>
   <div class="workspace-shell">
-    <WorkspaceSidebar :user="user" :active-step="activeStep" @logout="$emit('logout')" />
+    <WorkspaceSidebar
+      :user="user"
+      :active-step="activeStep"
+      :active-view="activeView"
+      :goal-total="goalTotal"
+      @navigate="navigate"
+      @logout="$emit('logout')"
+    />
 
-    <main id="workspace-top" class="workspace-main">
+    <main class="workspace-main">
       <header class="topbar">
-        <a class="mobile-brand" href="#workspace-top"><span>G</span><strong>GoalPilot</strong></a>
-        <span class="date">{{ todayLabel }}</span>
+        <button class="mobile-brand" type="button" @click="navigate('create')"><span><i></i></span><strong>GoalPilot</strong></button>
+        <nav class="mobile-nav" aria-label="移动端工作区导航">
+          <button type="button" :class="{ active: activeView === 'create' }" @click="navigate('create')">工作台</button>
+          <button type="button" :class="{ active: activeView === 'library' }" @click="navigate('library')">目标库</button>
+        </nav>
+        <div class="topbar-context"><span class="live-dot"></span><span>{{ todayLabel }}</span><i></i><span>{{ activeView === 'create' ? '目标规划中' : `共 ${goalTotal} 个目标` }}</span></div>
         <div class="current-user">
-          <span>你好，{{ user.username }}</span>
+          <span><small>WELCOME BACK</small><strong>{{ user.username }}</strong></span>
           <i>{{ userInitial }}</i>
-          <button @click="$emit('logout')">退出登录</button>
+          <button type="button" @click="$emit('logout')">退出</button>
         </div>
       </header>
 
       <div class="workspace-content">
-        <GoalComposer
-          v-model="goalText"
-          :loading="activeRequest === 'analysis'"
-          :error-title="!result ? errorTitle : ''"
-          :error-message="!result ? errorMessage : ''"
-          @submit="submitGoal"
-          @dismiss-error="errorMessage = ''"
-        />
+        <Transition name="workspace-swap" mode="out-in">
+          <div v-if="activeView === 'create'" key="create" class="view-stack">
+            <GoalComposer
+              v-model="goalText"
+              :loading="activeRequest === 'analysis'"
+              :error-title="!result ? errorTitle : ''"
+              :error-message="!result ? errorMessage : ''"
+              :user-name="user.username"
+              :current-goal-id="activeGoalId"
+              @submit="submitGoal"
+              @dismiss-error="errorMessage = ''"
+            />
 
-        <AnalysisResult
-          v-if="result"
-          v-model:answers="clarificationAnswers"
-          :result="result"
-          :active-request="activeRequest"
-          :history-count="clarificationHistory.length"
-          :error-title="errorTitle"
-          :error-message="errorMessage"
-          :plan-exists="!!plan"
-          @reset="resetAll"
-          @clarify="submitClarification"
-          @generate-plan="createPlan"
-          @dismiss-error="errorMessage = ''"
-        />
+            <AnalysisResult
+              v-if="result"
+              v-model:answers="clarificationAnswers"
+              :result="result"
+              :active-request="activeRequest"
+              :history-count="clarificationHistory.length"
+              :error-title="errorTitle"
+              :error-message="errorMessage"
+              :plan-exists="!!plan"
+              @reset="resetAll"
+              @clarify="submitClarification"
+              @generate-plan="createPlan"
+              @dismiss-error="errorMessage = ''"
+            />
 
-        <PlanRoadmap v-if="plan" :plan="plan" @reset="resetAll" />
+            <PlanRoadmap v-if="plan" :plan="plan" @reset="resetAll" />
+          </div>
+
+          <GoalLibrary
+            v-else
+            key="library"
+            :items="goalItems"
+            :loading="goalListLoading"
+            :error-message="goalListError"
+            :page="goalPage"
+            :total-pages="goalTotalPages"
+            :total="goalTotal"
+            @select="openGoalDetails"
+            @continue="continueGoal"
+            @new-goal="startNewGoal"
+            @refresh="loadGoalPage(goalPage)"
+            @page-change="loadGoalPage"
+          />
+        </Transition>
       </div>
 
-      <footer class="workspace-footer">
-        <span>GoalPilot © 2026</span>
-        <span>想清楚，然后温柔地前进。</span>
-      </footer>
+      <footer class="workspace-footer"><span>GOALPILOT © 2026</span><span>THINK CLEARLY · MOVE GENTLY</span></footer>
     </main>
+
+    <Teleport to="body">
+      <GoalDetailDrawer
+        v-if="detailOpen"
+        :goal="selectedGoal"
+        :loading="detailLoading"
+        @close="detailOpen = false"
+        @continue="continueGoal"
+      />
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
-.workspace-shell {
-  min-height: 100vh;
-  background: #ece9e2;
-}
-
-.workspace-main {
-  min-height: 100vh;
-  margin-left: 280px;
-  display: flex;
-  flex-direction: column;
-}
-
-.topbar {
-  position: sticky;
-  z-index: 10;
-  top: 0;
-  height: 72px;
-  padding: 0 clamp(28px, 4vw, 64px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(255, 253, 248, .94);
-  border-bottom: 1px solid #b8b2a6;
-  backdrop-filter: blur(10px);
-}
-
-.date {
-  color: #555a51;
-  font-size: 13px;
-}
-
-.current-user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #484d44;
-  font-size: 13px;
-}
-
-.current-user i {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: #c56345;
-  border-radius: 50%;
-  font-family: var(--serif);
-  font-size: 16px;
-  font-style: normal;
-}
-
-.current-user button {
-  padding: 6px 9px;
-  color: #565b52;
-  background: transparent;
-  border: 1px solid #bcb6aa;
-  border-radius: 7px;
-  font-size: 11px;
-}
-
-.current-user button:hover { color: #8d3f2c; background: #f3e4de; border-color: #d09b87; }
-
-.mobile-brand { display: none; color: #22261f; text-decoration: none; }
-
-.workspace-content {
-  width: min(1540px, calc(100% - clamp(56px, 8vw, 128px)));
-  margin: 0 auto;
-  padding: clamp(46px, 5vw, 76px) 0 80px;
-  display: grid;
-  flex: 1;
-  gap: 64px;
-}
-
-.workspace-footer {
-  width: min(1540px, calc(100% - clamp(56px, 8vw, 128px)));
-  margin: 0 auto;
-  padding: 24px 0 30px;
-  display: flex;
-  justify-content: space-between;
-  color: #64675f;
-  border-top: 1px solid #aaa498;
-  font-size: 11px;
-}
-
-@media (max-width: 1020px) {
+.workspace-shell { min-height: 100vh; background: var(--canvas); }
+.workspace-main { position: relative; min-height: 100vh; margin-left: 258px; display: flex; flex-direction: column; }
+.workspace-main::before { content: ''; position: fixed; z-index: 0; top: 70px; right: 0; bottom: 0; left: 258px; pointer-events: none; opacity: .33; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(circle at 85% 7%, black, transparent 38%); }
+.topbar { position: sticky; z-index: 20; top: 0; height: 70px; padding: 0 clamp(25px, 3vw, 48px); display: flex; align-items: center; justify-content: space-between; background: rgba(243, 241, 236, .92); border-bottom: 1px solid var(--line-strong); backdrop-filter: blur(16px); }
+.topbar-context { display: flex; align-items: center; gap: 9px; color: var(--ink-500); font-size: 10px; font-weight: 600; letter-spacing: .03em; }
+.topbar-context > i { width: 1px; height: 13px; background: var(--line-strong); }
+.live-dot { width: 7px; height: 7px; background: var(--moss-600); border: 2px solid var(--moss-200); border-radius: 50%; box-sizing: content-box; }
+.current-user { display: flex; align-items: center; gap: 10px; }
+.current-user > span { text-align: right; }
+.current-user small, .current-user strong { display: block; }
+.current-user small { color: var(--ink-400); font-size: 7px; font-weight: 750; letter-spacing: .13em; }
+.current-user strong { margin-top: 3px; color: var(--ink); font-size: 11px; }
+.current-user > i { width: 34px; height: 34px; display: grid; place-items: center; color: var(--paper); background: var(--coral-600); border: 2px solid var(--paper); border-radius: 50%; box-shadow: 0 0 0 1px var(--coral-600); font-family: var(--display); font-size: 15px; font-style: normal; }
+.current-user button { padding: 7px 9px; color: var(--ink-500); background: transparent; border: 0; border-left: 1px solid var(--line-strong); font-size: 9px; }
+.current-user button:hover { color: var(--coral-700); }
+.mobile-brand, .mobile-nav { display: none; }
+.workspace-content { position: relative; z-index: 1; width: min(1760px, calc(100% - clamp(54px, 6vw, 96px))); margin-right: auto; margin-left: clamp(27px, 3vw, 48px); padding: clamp(30px, 3.2vw, 46px) 0 64px; flex: 1; }
+.view-stack { display: grid; gap: 48px; }
+.workspace-footer { position: relative; z-index: 1; width: min(1760px, calc(100% - clamp(54px, 6vw, 96px))); margin-right: auto; margin-left: clamp(27px, 3vw, 48px); padding: 19px 0 24px; display: flex; justify-content: space-between; color: var(--ink-400); border-top: 1px solid var(--line-strong); font-size: 8px; font-weight: 700; letter-spacing: .13em; }
+.workspace-swap-enter-active, .workspace-swap-leave-active { transition: opacity .2s ease, transform .25s ease; }
+.workspace-swap-enter-from { opacity: 0; transform: translateY(10px); }
+.workspace-swap-leave-to { opacity: 0; transform: translateY(-6px); }
+@media (max-width: 1050px) {
   .workspace-main { margin-left: 0; }
-  .mobile-brand { display: flex; align-items: center; gap: 8px; }
-  .mobile-brand span { width: 31px; height: 31px; display: grid; place-items: center; color: #fff; background: #3d4d3b; border-radius: 50%; font-family: var(--serif); font-size: 18px; }
-  .mobile-brand strong { font-family: var(--serif); font-size: 20px; }
-  .date { display: none; }
+  .workspace-main::before { left: 0; }
+  .workspace-content, .workspace-footer { margin-right: auto; margin-left: auto; }
+  .mobile-brand { padding: 0; display: flex; align-items: center; gap: 8px; color: var(--ink); background: transparent; border: 0; }
+  .mobile-brand > span { position: relative; width: 31px; height: 31px; display: block; background: var(--coral-500); border-radius: 50% 50% 50% 9px; transform: rotate(-8deg); }
+  .mobile-brand > span::after { content: ''; position: absolute; top: 15px; left: 7px; width: 17px; height: 2px; background: white; transform: rotate(-24deg); }
+  .mobile-brand strong { font-family: var(--editorial); font-size: 21px; }
+  .mobile-nav { display: flex; padding: 3px; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; }
+  .mobile-nav button { padding: 6px 10px; color: var(--ink-500); background: transparent; border: 0; border-radius: 999px; font-size: 10px; }
+  .mobile-nav button.active { color: var(--paper); background: var(--ink); }
+  .topbar-context { display: none; }
 }
-
 @media (max-width: 620px) {
-  .topbar { height: 64px; padding: 0 17px; }
-  .current-user > span { display: none; }
-  .current-user button { font-size: 0; border: 0; padding: 3px; }
-  .current-user button::after { content: '退出'; font-size: 11px; }
-  .workspace-content, .workspace-footer { width: calc(100% - 30px); }
-  .workspace-content { padding: 37px 0 60px; gap: 48px; }
-  .workspace-footer { gap: 7px; flex-direction: column; }
+  .topbar { height: 63px; padding: 0 15px; }
+  .mobile-brand strong { display: none; }
+  .current-user > span, .current-user button { display: none; }
+  .workspace-content, .workspace-footer { width: calc(100% - 28px); margin-right: auto; margin-left: auto; }
+  .workspace-content { padding: 27px 0 48px; }
+  .view-stack { gap: 40px; }
+  .workspace-footer { gap: 8px; flex-direction: column; }
 }
 </style>

@@ -2,6 +2,7 @@ package com.qijx.goalpilot.goal.service;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import org.springframework.ai.chat.client.ChatClient;
@@ -24,7 +25,7 @@ public class GoalAnalysisService {
             请完成：
             1. 用清晰的话重新简述用户目标
             2. 提取用户已经提供的时间、范围、限制和期望等信息，knownInformation 至少包含一项从用户目标中确认的信息。
-            3. 只识别会显著影响计划生成、必须由用户补充的关键缺失信息。
+            3. 识别会影响计划生成、必须由用户补充的关键缺失信息。
             4. 判断当前信息是否足以生成一份合理的初步执行计划。
             5. 如果缺失的信息会显著改变计划内容，readiness 返回 NEEDS_CLARIFICATION。
             6. 如果当前信息已经足以生成初步计划，readiness 返回 READY。
@@ -35,6 +36,10 @@ public class GoalAnalysisService {
             11. 当 readiness 为 READY 时，missingInformation 和 clarificationQuestions 都必须返回空列表。
             12. 不得虚构用户未提供的信息。
             13. 使用简洁的中文回复。
+            14. goalSummary 不得超过 1000 个字符。
+            15. knownInformation 必须包含 1 至 20 项，每项不得超过 500 个字符。
+            16. missingInformation 最多包含 10 项，每项不得超过 500 个字符。
+            17. clarificationQuestions 最多包含 3 项，每项不得超过 300 个字符，并且不得包含重复问题。
 
             输出包含：
             goalSummary：目标概述
@@ -43,6 +48,12 @@ public class GoalAnalysisService {
             readiness：只能是 READY 或 NEEDS_CLARIFICATION
             clarificationQuestions：需要用户回答的澄清问题
             """;
+
+    private static final int MAX_GOAL_SUMMARY_LENGTH = 1000;
+    private static final int MAX_KNOWN_INFORMATION_COUNT = 20;
+    private static final int MAX_MISSING_INFORMATION_COUNT = 10;
+    private static final int MAX_INFORMATION_ITEM_LENGTH = 500;
+    private static final int MAX_CLARIFICATION_QUESTION_LENGTH = 300;
 
     public GoalAnalysisService(ChatClient.Builder chatClientBuilder){
         this.chatClient = chatClientBuilder.build();
@@ -102,7 +113,9 @@ public class GoalAnalysisService {
         }
 
         //分析的总结不为空，且必须有内容
-        if(analysis.goalSummary() == null || analysis.goalSummary().isBlank()){
+        if(analysis.goalSummary() == null
+            || analysis.goalSummary().isBlank()
+            || analysis.goalSummary().trim().length() > MAX_GOAL_SUMMARY_LENGTH){
             return false;
         }
 
@@ -111,10 +124,14 @@ public class GoalAnalysisService {
             return false;
         }
 
+        List<String> knownInformation = analysis.knownInformation();
+
         //分析已有的信息一定不为空，而且不能包含空的内容
-        if(analysis.knownInformation() == null
-                || analysis.knownInformation().isEmpty()
-                || containsBlankItem(analysis.knownInformation())){
+        if(knownInformation == null
+                || knownInformation.isEmpty()
+                || knownInformation.size() > MAX_KNOWN_INFORMATION_COUNT
+                || containsBlankItem(analysis.knownInformation())
+                || containsOversizedItem(knownInformation, MAX_INFORMATION_ITEM_LENGTH)){
             return false;
         }
 
@@ -151,15 +168,25 @@ public class GoalAnalysisService {
     }
 
     private boolean isValidNeedsClarificationResponse(GoalAnalysisResponse analysis){
-        if(analysis.missingInformation().isEmpty()){
+        List<String> missingInformation = analysis.missingInformation();
+
+
+        if(missingInformation.isEmpty()
+            || missingInformation.size() > MAX_MISSING_INFORMATION_COUNT){
             return false;
         }
 
-        if(containsBlankItem(analysis.missingInformation())){
+        if(containsBlankItem(missingInformation)){
             return false;
         }
 
-        if(analysis.clarificationQuestions().isEmpty()){
+        if (containsOversizedItem(missingInformation, MAX_INFORMATION_ITEM_LENGTH)){
+            return false;
+        }
+
+        List<String> clarificationQuestions = analysis.clarificationQuestions();
+
+        if(clarificationQuestions.isEmpty()){
             return false;
         }
 
@@ -170,6 +197,11 @@ public class GoalAnalysisService {
         if(containsBlankItem(analysis.clarificationQuestions())){
             return false;
         }
+
+        if(containsOversizedItem(clarificationQuestions, MAX_CLARIFICATION_QUESTION_LENGTH)
+            || containsDuplicateItem(clarificationQuestions)){
+                return false;
+            }
 
         return true;
     }
@@ -247,5 +279,33 @@ public class GoalAnalysisService {
         }
 
         return analysis;
+    }
+
+    private boolean containsOversizedItem(List<String> items, int maxLength){
+        for(String item : items){
+            if(item == null || item.trim().length() > maxLength){
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean containsDuplicateItem(List<String> items){
+        Set<String> normalizedItems = new HashSet<>();
+
+        for(String item : items){
+            if(item == null){
+                return true;
+            }
+
+            String normalizedItem = item.trim().toLowerCase(Locale.ROOT);
+
+            if(!normalizedItems.add(normalizedItem)){
+                return true;
+            }
+        }
+
+        return false;
     }
 }

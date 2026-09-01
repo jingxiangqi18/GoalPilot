@@ -10,6 +10,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.qijx.goalpilot.goal.domain.GoalStatus;
+import com.qijx.goalpilot.goal.dto.GoalAnalysisResponse;
+import com.qijx.goalpilot.goal.dto.GoalAnalysisSnapshotResponse;
 import com.qijx.goalpilot.goal.dto.GoalCreateRequest;
 import com.qijx.goalpilot.goal.dto.GoalListResponse;
 import com.qijx.goalpilot.goal.dto.GoalResponse;
@@ -19,9 +21,18 @@ import com.qijx.goalpilot.goal.mapper.GoalMapper;
 @Service
 public class GoalService {
     private final GoalMapper goalMapper;
+    private final GoalAnalysisService goalAnalysisService;
+    private final GoalAnalysisPersistenceService goalAnalysisPersistenceService;
 
-    public GoalService(GoalMapper goalMapper){
+    public GoalService(
+        GoalMapper goalMapper,
+        GoalAnalysisService goalAnalysisService,
+        GoalAnalysisPersistenceService goalAnalysisPersistenceService
+    ){
         this.goalMapper = goalMapper;
+        this.goalAnalysisService = goalAnalysisService;
+        this.goalAnalysisPersistenceService = goalAnalysisPersistenceService;
+
     }
 
     public GoalResponse createGoal(Long userId, GoalCreateRequest request){
@@ -76,6 +87,20 @@ public class GoalService {
         Goal goal = findOwnedGoal(userId, goalId);
 
         return GoalResponse.from(goal);
+    }
+
+    public GoalAnalysisSnapshotResponse analyzeGoal(Long userId, Long goalId){
+        Goal goal = findOwnedGoal(userId, goalId);
+
+        if(goal.getStatus() != GoalStatus.DRAFT){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "目标状态不正确");
+        }
+
+        GoalAnalysisResponse response = goalAnalysisService.analyzeGoal(goal.getGoalText());
+
+        GoalAnalysisSnapshotResponse snapshotResponse = goalAnalysisPersistenceService.saveInitialAnalysis(goal, response);
+
+        return snapshotResponse;
     }
 
     private Goal findOwnedGoal(Long userId, Long goalId){

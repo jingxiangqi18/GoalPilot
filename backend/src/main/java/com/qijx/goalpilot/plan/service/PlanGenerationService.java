@@ -7,8 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.qijx.goalpilot.goal.domain.GoalReadiness;
-import com.qijx.goalpilot.goal.dto.GoalAnalysisResponse;
+import com.qijx.goalpilot.plan.dto.PlanGenerationContext;
 import com.qijx.goalpilot.plan.dto.PlanGenerationResponse;
 import com.qijx.goalpilot.plan.dto.PlanStage;
 import com.qijx.goalpilot.plan.dto.PlannedTask;
@@ -16,6 +15,16 @@ import com.qijx.goalpilot.plan.dto.PlannedTask;
 @Service
 public class PlanGenerationService {
     private final ChatClient chatClient;
+    private static final int MAX_GOAL_TEXT_LENGTH = 1000;
+    private static final int MAX_GOAL_SUMMARY_LENGTH = 1000;
+    private static final int MAX_KNOWN_INFORMATION_COUNT = 20;
+    private static final int MAX_INFORMATION_ITEM_LENGTH = 500;
+    private static final int MAX_PLAN_TITLE_LENGTH = 300;
+    private static final int MAX_PLAN_SUMMARY_LENGTH = 2000;
+    private static final int MAX_STAGE_TITLE_LENGTH = 300;
+    private static final int MAX_STAGE_OBJECTIVE_LENGTH = 1000;
+    private static final int MAX_STAGE_TIME_RANGE_LENGTH = 300;
+    private static final int MAX_TASK_TITLE_LENGTH = 300;
     private static final String SYSTEM_PROMPT = """
         你是 GoalPilot 的计划生成助手。
 
@@ -85,74 +94,48 @@ public class PlanGenerationService {
         this.chatClient = chatClientBuilder.build();
     }
 
-    public PlanGenerationResponse generatePlan(String goalText, GoalAnalysisResponse goalAnalysis){
-        String normalizedGoalText = normalizeGoalText(goalText);
+    public PlanGenerationResponse generatePlan(PlanGenerationContext context){
+        validatePlanningContext(context);
 
-        validatePlanningContext(goalAnalysis);
-
-        String userPrompt = buildPlanGenerationUserPrompt(normalizedGoalText, goalAnalysis);
+        String userPrompt = buildPlanGenerationUserPrompt(context);
 
         PlanGenerationResponse plan = requestPlanGeneration(userPrompt);
 
         return plan;
     }
 
-    private String normalizeGoalText(String goalText){
-        if(goalText == null || goalText.isBlank()){
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标不能为空");
-        }
-
-        return goalText.trim();
-    }
-
-    private void validatePlanningContext(GoalAnalysisResponse goalAnalysis){
+    private void validatePlanningContext(PlanGenerationContext context){
         boolean valid = true;
 
-        if(goalAnalysis == null){
+        if(context == null){
             valid = false;
         }else {
-            if(goalAnalysis.goalSummary() == null
-                    || goalAnalysis.goalSummary().isBlank()){
+            if(context.goalText() == null
+                    || context.goalText().isBlank()
+                    || context.goalText().trim().length() > MAX_GOAL_TEXT_LENGTH){
                 valid = false;
             }
 
-            if(goalAnalysis.readiness() != GoalReadiness.READY){
+            if(context.goalSummary() == null
+                    || context.goalSummary().isBlank()
+                    || context.goalSummary().trim().length() > MAX_GOAL_SUMMARY_LENGTH){
                 valid = false;
             }
 
-            List<String> knownInformation = goalAnalysis.knownInformation();
+            List<String> knownInformation = context.knownInformation();
 
             if(knownInformation == null
-                    || knownInformation.isEmpty()){
+                    || knownInformation.isEmpty()
+                    || knownInformation.size() > MAX_KNOWN_INFORMATION_COUNT){
                 valid = false;
             }
 
             if(knownInformation != null
-                    && containsBlankItem(knownInformation)) {
+                    && (containsBlankItem(knownInformation)
+                        || containsOversizedItem(knownInformation, MAX_INFORMATION_ITEM_LENGTH))) {
                 valid = false;
             }
 
-            List<String> missingInformation = goalAnalysis.missingInformation();
-
-            if(missingInformation == null){
-                valid = false;
-            }
-
-            if(missingInformation != null
-                    && !missingInformation.isEmpty()) {
-                valid = false;
-            }
-
-            List<String> clarificationQuestions = goalAnalysis.clarificationQuestions();
-
-            if (clarificationQuestions == null) {
-                valid = false;
-            }
-
-            if (clarificationQuestions != null
-                    && !clarificationQuestions.isEmpty()) {
-                valid = false;
-            }
         }
 
         if(!valid){
@@ -170,20 +153,30 @@ public class PlanGenerationService {
         return false;
     }
 
-    private String buildPlanGenerationUserPrompt(String normalizedGoalText, GoalAnalysisResponse goalAnalysis){
+    private boolean containsOversizedItem(List<String> items, int maxLength){
+        for(String item : items){
+            if(item != null && item.trim().length() > maxLength){
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private String buildPlanGenerationUserPrompt(PlanGenerationContext context){
         StringBuilder promptBuilder = new StringBuilder();
 
         promptBuilder
                 .append("原始目标：\n")
-                .append(normalizedGoalText)
+                .append(context.goalText().trim())
                 .append("\n\n")
                 .append("目标概述：\n")
-                .append(goalAnalysis.goalSummary().trim())
+                .append(context.goalSummary().trim())
                 .append("\n\n")
                 .append("用户已经确认的信息：\n\n");
 
-        for(int index = 0; index < goalAnalysis.knownInformation().size(); index++){
-            String information = goalAnalysis.knownInformation().get(index);
+        for(int index = 0; index < context.knownInformation().size(); index++){
+            String information = context.knownInformation().get(index);
 
             promptBuilder
                     .append(index + 1)
@@ -214,7 +207,9 @@ public class PlanGenerationService {
             return false;
         }
 
-        if(task.title() == null || task.title().isBlank()){
+        if(task.title() == null
+            || task.title().isBlank()
+            || task.title().trim().length() > MAX_TASK_TITLE_LENGTH){
             return false;
         }
 
@@ -234,11 +229,15 @@ public class PlanGenerationService {
             return false;
         }
 
-        if(plan.planTitle() == null || plan.planTitle().isBlank()){
+        if(plan.planTitle() == null
+            || plan.planTitle().isBlank()
+            || plan.planTitle().trim().length() > MAX_PLAN_TITLE_LENGTH){
             return false;
         }
 
-        if(plan.planSummary() == null || plan.planSummary().isBlank()){
+        if(plan.planSummary() == null
+            || plan.planSummary().isBlank()
+            || plan.planSummary().trim().length() > MAX_PLAN_SUMMARY_LENGTH){
             return false;
         }
 
@@ -276,15 +275,21 @@ public class PlanGenerationService {
             return false;
         }
 
-        if(stage.title() == null || stage.title().isBlank()){
+        if(stage.title() == null
+            || stage.title().isBlank()
+            || stage.title().trim().length() > MAX_STAGE_TITLE_LENGTH){
             return false;
         }
 
-        if(stage.objective() == null || stage.objective().isBlank()){
+        if(stage.objective() == null
+            || stage.objective().isBlank()
+            || stage.objective().trim().length() > MAX_STAGE_OBJECTIVE_LENGTH){
             return false;
         }
 
-        if(stage.timeRange() == null || stage.timeRange().isBlank()){
+        if(stage.timeRange() == null
+            || stage.timeRange().isBlank()
+            || stage.timeRange().trim().length() > MAX_STAGE_TIME_RANGE_LENGTH){
             return false;
         }
 

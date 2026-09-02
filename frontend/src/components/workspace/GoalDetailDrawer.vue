@@ -14,6 +14,18 @@ const statusLabels = {
 }
 const priorityLabels = { LOW: '低', MEDIUM: '中', HIGH: '高' }
 const statusLabel = computed(() => statusLabels[props.goal?.status] || props.goal?.status || '未知')
+const canContinue = computed(() => props.goal?.status === 'DRAFT')
+const lifecycleStep = computed(() => {
+  if (props.goal?.status === 'DRAFT') return 1
+  if (props.goal?.status === 'NEEDS_CLARIFICATION') return 2
+  return 3
+})
+const lifecycleCopy = computed(() => {
+  if (canContinue.value) return '这条目标尚未分析，可以继续进入 AI 分析。'
+  if (props.goal?.status === 'NEEDS_CLARIFICATION') return '初始分析已保存，目标正在等待关键信息补充。'
+  if (props.goal?.status === 'READY_TO_PLAN') return '初始分析已保存，现有信息足以生成行动计划。'
+  return '目标记录已经进入后续执行阶段。'
+})
 
 function formatDate(value, includeTime = false) {
   if (!value) return '暂未设置'
@@ -67,14 +79,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
           <div><dt>记录 ID</dt><dd>#{{ goal.id }}</dd></div>
         </dl>
 
-        <div class="backend-note">
-          <span>i</span>
-          <p>当前后端已支持创建、分页与详情查询；优先级、期限等字段会随后端编辑能力开放后在这里完善。</p>
-        </div>
+        <section class="lifecycle-card">
+          <header><span>GOAL LIFECYCLE</span><strong>{{ lifecycleStep }} / 3</strong></header>
+          <ol>
+            <li :class="{ active: lifecycleStep === 1, done: lifecycleStep > 1 }"><i>1</i><span>目标记录</span></li>
+            <li :class="{ active: lifecycleStep === 2, done: lifecycleStep > 2 }"><i>2</i><span>分析与澄清</span></li>
+            <li :class="{ active: lifecycleStep === 3 }"><i>3</i><span>行动规划</span></li>
+          </ol>
+          <p>{{ lifecycleCopy }}</p>
+        </section>
 
         <footer>
-          <button type="button" class="ghost-button" @click="emit('close')">稍后再看</button>
-          <button type="button" class="continue-button" @click="emit('continue', goal)">继续梳理目标 <span>↗</span></button>
+          <button type="button" class="ghost-button" @click="emit('close')">返回目标库</button>
+          <button v-if="canContinue" type="button" class="continue-button" @click="emit('continue', goal)">继续分析目标 <span>↗</span></button>
         </footer>
       </template>
     </aside>
@@ -103,9 +120,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 .detail-list .wide { grid-column: 1 / -1; min-height: 106px; }
 .detail-list dt { color: var(--ink-500); font-size: 10px; font-weight: 750; letter-spacing: .1em; }
 .detail-list dd { margin: 10px 0 0; color: var(--ink); font-size: 13px; line-height: 1.6; }
-.backend-note { margin: 0 34px; padding: 15px; display: flex; align-items: flex-start; gap: 11px; color: var(--moss-800); background: var(--moss-100); border: 1px solid var(--moss-300); border-radius: var(--radius-sm); }
-.backend-note span { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; color: var(--paper); background: var(--moss-700); border-radius: 50%; font-family: var(--display); font-size: 13px; }
-.backend-note p { margin: 1px 0 0; font-size: 11px; line-height: 1.65; }
+.lifecycle-card { margin: 0 34px; padding: 17px; color: var(--ink-700); background: var(--canvas-soft); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.lifecycle-card header { display: flex; align-items: center; justify-content: space-between; }
+.lifecycle-card header span { color: var(--ink-400); font-size: 8px; font-weight: 700; letter-spacing: .14em; }
+.lifecycle-card header strong { color: var(--coral-700); font-size: 10px; }
+.lifecycle-card ol { position: relative; margin: 17px 0 14px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); list-style: none; }
+.lifecycle-card ol::before { content: ''; position: absolute; top: 13px; right: 15%; left: 15%; height: 1px; background: var(--line-strong); }
+.lifecycle-card li { position: relative; z-index: 1; display: grid; justify-items: center; gap: 7px; color: var(--ink-400); font-size: 9px; }
+.lifecycle-card li i { width: 27px; height: 27px; display: grid; place-items: center; background: var(--paper); border: 1px solid var(--line-strong); border-radius: 8px; font-style: normal; }
+.lifecycle-card li.active { color: var(--ink); font-weight: 700; }
+.lifecycle-card li.active i { color: #fff; background: var(--coral-600); border-color: var(--coral-600); box-shadow: 0 0 0 4px var(--coral-100); }
+.lifecycle-card li.done i { color: #fff; background: var(--moss-700); border-color: var(--moss-700); }
+.lifecycle-card > p { margin: 0; padding-top: 13px; color: var(--ink-500); border-top: 1px solid var(--line); font-size: 10px; line-height: 1.6; }
 .detail-drawer > footer { position: sticky; bottom: 0; margin-top: 32px; padding: 18px 34px; display: flex; justify-content: flex-end; gap: 10px; background: rgba(255, 253, 248, .94); border-top: 1px solid var(--line-strong); backdrop-filter: blur(12px); }
 .detail-drawer > footer button { min-height: 43px; padding: 0 17px; border-radius: 999px; font-size: 12px; font-weight: 700; }
 .ghost-button { color: var(--ink-600); background: var(--paper); border: 1px solid var(--line-strong); }
@@ -120,7 +146,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
   .detail-drawer > header, .goal-title-block, .detail-list { padding-left: 20px; padding-right: 20px; }
   .detail-list { grid-template-columns: 1fr; }
   .detail-list .wide { grid-column: auto; }
-  .backend-note { margin-inline: 20px; }
+  .lifecycle-card { margin-inline: 20px; }
   .detail-drawer > footer { padding-inline: 20px; }
 }
 </style>

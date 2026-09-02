@@ -14,6 +14,19 @@ const props = defineProps({
 const emit = defineEmits(['reset', 'clarify', 'generate-plan', 'dismiss-error'])
 const isReady = computed(() => props.result.readiness === 'READY')
 const answeredCount = computed(() => answers.value.filter((answer) => answer.trim()).length)
+const snapshotLabel = computed(() => {
+  if (!props.result.analysisId) return '实时分析'
+  const version = props.result.versionNumber ? `V${props.result.versionNumber}` : 'V1'
+  return `${version} · 快照 #${props.result.analysisId}`
+})
+const snapshotTime = computed(() => {
+  if (!props.result.createdAt) return ''
+  const date = new Date(props.result.createdAt)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).format(date)
+})
 </script>
 
 <template>
@@ -21,11 +34,14 @@ const answeredCount = computed(() => answers.value.filter((answer) => answer.tri
     <header class="module-heading">
       <div class="heading-index">02</div>
       <div class="heading-copy">
-        <span>分析结果</span>
+        <span>ANALYSIS SNAPSHOT · 分析快照</span>
         <h2>目标画像</h2>
         <p>先确认我们理解的是同一件事，再进入计划阶段。</p>
       </div>
-      <button class="secondary-button" @click="emit('reset')">分析新目标</button>
+      <div class="heading-actions">
+        <span class="snapshot-chip"><i></i>{{ snapshotLabel }}<small v-if="snapshotTime">{{ snapshotTime }}</small></span>
+        <button class="secondary-button" @click="emit('reset')">分析新目标</button>
+      </div>
     </header>
 
     <div v-if="errorMessage" class="error-banner" role="alert">
@@ -77,10 +93,11 @@ const answeredCount = computed(() => answers.value.filter((answer) => answer.tri
       </header>
 
       <div class="question-list">
-        <label v-for="(question, index) in result.clarificationQuestions" :key="question">
+        <label v-for="(item, index) in result.clarificationQuestions" :key="item.questionId || item.question">
           <span class="question-number">{{ index + 1 }}</span>
           <span class="question-body">
-            <strong>{{ question }}</strong>
+            <small v-if="item.questionId">问题记录 #{{ item.questionId }}</small>
+            <strong>{{ item.question }}</strong>
             <textarea v-model="answers[index]" rows="3" maxlength="1000" placeholder="在这里写下你的回答……"></textarea>
           </span>
         </label>
@@ -176,6 +193,10 @@ const answeredCount = computed(() => answers.value.filter((answer) => answer.tri
 }
 
 .secondary-button:hover { background: var(--canvas); }
+.heading-actions { display: flex; align-items: center; gap: 9px; }
+.snapshot-chip { min-height: 40px; padding: 0 12px; display: inline-flex; align-items: center; gap: 7px; color: var(--ink-600); background: var(--canvas-soft); border: 1px solid var(--line); border-radius: 9px; font-size: 10px; font-weight: 700; }
+.snapshot-chip i { width: 6px; height: 6px; background: var(--coral-500); border-radius: 50%; box-shadow: 0 0 0 4px var(--coral-100); }
+.snapshot-chip small { padding-left: 7px; color: var(--ink-400); border-left: 1px solid var(--line); font-size: 9px; font-weight: 600; }
 
 .panel {
   background: var(--paper);
@@ -335,6 +356,7 @@ const answeredCount = computed(() => answers.value.filter((answer) => answer.tri
   font-weight: 700;
 }
 
+.question-body > small { display: block; margin-bottom: 5px; color: var(--ink-400); font-size: 9px; font-weight: 700; letter-spacing: .07em; }
 .question-body strong { display: block; color: var(--ink); font-size: 15px; line-height: 1.5; }
 .question-body textarea { width: 100%; min-height: 76px; margin-top: 12px; padding: 13px 14px; resize: vertical; color: var(--ink); background: var(--paper); border: 1px solid var(--line-strong); border-radius: 8px; outline: none; font-size: 14px; line-height: 1.55; }
 .question-body textarea:focus { border-color: var(--moss-700); box-shadow: 0 0 0 3px rgba(107,118,107,.12); }
@@ -391,7 +413,7 @@ const answeredCount = computed(() => answers.value.filter((answer) => answer.tri
 @media (max-width: 720px) {
   .module-heading { grid-template-columns: 45px 1fr; }
   .heading-index { width: 42px; height: 42px; }
-  .secondary-button { grid-column: 2; justify-self: start; }
+  .heading-actions { grid-column: 1 / -1; flex-wrap: wrap; }
   .insight-grid { grid-template-columns: 1fr; }
   .ready-panel { grid-template-columns: 45px 1fr; }
   .ready-icon { width: 44px; height: 44px; }

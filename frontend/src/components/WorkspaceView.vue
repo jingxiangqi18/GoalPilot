@@ -8,6 +8,7 @@ import AnalysisResult from './workspace/AnalysisResult.vue'
 import PlanRoadmap from './workspace/PlanRoadmap.vue'
 import GoalLibrary from './workspace/GoalLibrary.vue'
 import GoalDetailDrawer from './workspace/GoalDetailDrawer.vue'
+import TodayPanel from './workspace/TodayPanel.vue'
 
 const props = defineProps({ user: { type: Object, required: true } })
 defineEmits(['logout'])
@@ -34,11 +35,12 @@ const goalListError = ref('')
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const selectedGoal = ref(null)
+const today = new Date()
 
 const userInitial = computed(() => props.user.username?.charAt(0).toUpperCase() || 'G')
-const todayLabel = computed(() => new Intl.DateTimeFormat('zh-CN', {
-  month: 'long', day: 'numeric', weekday: 'long',
-}).format(new Date()))
+const todayDay = String(today.getDate()).padStart(2, '0')
+const todayMonth = new Intl.DateTimeFormat('zh-CN', { month: 'long' }).format(today)
+const todayWeekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(today)
 const activeStep = computed(() => {
   if (plan.value || result.value?.readiness === 'READY') return 3
   if (result.value) return 2
@@ -46,12 +48,29 @@ const activeStep = computed(() => {
 })
 
 function normalizeResult(data) {
+  const questions = Array.isArray(data?.clarificationQuestions)
+    ? data.clarificationQuestions.map((item, index) => (
+        typeof item === 'string'
+          ? { questionId: null, question: item, answer: '', sortOrder: index + 1 }
+          : {
+              questionId: item?.questionId ?? null,
+              question: item?.question || '',
+              answer: item?.answer || '',
+              sortOrder: index + 1,
+            }
+      )).filter((item) => item.question)
+    : []
+
   return {
+    analysisId: data?.analysisId ?? null,
+    goalId: data?.goalId ?? activeGoalId.value,
+    versionNumber: data?.versionNumber ?? null,
+    createdAt: data?.createdAt ?? null,
     goalSummary: data?.goalSummary || '未返回目标概述',
     knownInformation: Array.isArray(data?.knownInformation) ? data.knownInformation : [],
     missingInformation: Array.isArray(data?.missingInformation) ? data.missingInformation : [],
     readiness: data?.readiness || 'UNKNOWN',
-    clarificationQuestions: Array.isArray(data?.clarificationQuestions) ? data.clarificationQuestions : [],
+    clarificationQuestions: questions,
   }
 }
 
@@ -116,11 +135,12 @@ async function submitGoal() {
       loadGoalPage(1)
     }
 
-    result.value = normalizeResult(await analyzeGoal(normalized))
+    result.value = normalizeResult(await analyzeGoal(activeGoalId.value))
     submittedGoal.value = normalized
     plan.value = null
     clarificationHistory.value = []
-    clarificationAnswers.value = result.value.clarificationQuestions.map(() => '')
+    clarificationAnswers.value = result.value.clarificationQuestions.map((item) => item.answer || '')
+    await loadGoalPage(1)
     scrollToSection('#analysis')
   } catch (error) {
     setRequestError(activeGoalId.value ? '目标已保存，但分析没有完成' : '目标保存或分析没有完成', error)
@@ -132,7 +152,7 @@ async function submitGoal() {
 async function submitClarification() {
   if (activeRequest.value || !result.value) return
   const newAnswers = result.value.clarificationQuestions
-    .map((question, index) => ({ question, answer: clarificationAnswers.value[index]?.trim() }))
+    .map((item, index) => ({ question: item.question, answer: clarificationAnswers.value[index]?.trim() }))
     .filter((item) => item.answer)
   if (!newAnswers.length) return
 
@@ -148,7 +168,7 @@ async function submitClarification() {
   try {
     result.value = normalizeResult(await clarifyGoal(submittedGoal.value, updatedHistory))
     clarificationHistory.value = updatedHistory
-    clarificationAnswers.value = result.value.clarificationQuestions.map(() => '')
+    clarificationAnswers.value = result.value.clarificationQuestions.map((item) => item.answer || '')
     plan.value = null
     scrollToSection('#analysis')
   } catch (error) {
@@ -163,7 +183,14 @@ async function createPlan() {
   activeRequest.value = 'plan'
   errorMessage.value = ''
   try {
-    plan.value = normalizePlan(await generatePlan(submittedGoal.value, result.value))
+    const planAnalysis = {
+      goalSummary: result.value.goalSummary,
+      knownInformation: result.value.knownInformation,
+      missingInformation: result.value.missingInformation,
+      readiness: result.value.readiness,
+      clarificationQuestions: result.value.clarificationQuestions.map((item) => item.question),
+    }
+    plan.value = normalizePlan(await generatePlan(submittedGoal.value, planAnalysis))
     scrollToSection('#plan')
   } catch (error) {
     setRequestError('计划生成没有完成', error)
@@ -248,49 +275,67 @@ onMounted(() => loadGoalPage(1))
 
     <main class="workspace-main">
       <header class="topbar">
-        <button class="mobile-brand" type="button" @click="navigate('create')"><span><i></i></span><strong>GoalPilot</strong></button>
-        <nav class="mobile-nav" aria-label="移动端工作区导航">
-          <button type="button" :class="{ active: activeView === 'create' }" @click="navigate('create')">工作台</button>
-          <button type="button" :class="{ active: activeView === 'library' }" @click="navigate('library')">目标库</button>
-        </nav>
-        <div class="topbar-context"><span class="live-dot"></span><span>{{ todayLabel }}</span><i></i><span>{{ activeView === 'create' ? '目标规划中' : `共 ${goalTotal} 个目标` }}</span></div>
-        <div class="current-user">
-          <span><small>WELCOME BACK</small><strong>{{ user.username }}</strong></span>
-          <i>{{ userInitial }}</i>
-          <button type="button" @click="$emit('logout')">退出</button>
+        <div class="topbar-inner">
+          <button class="mobile-brand" type="button" @click="navigate('create')"><span><i></i></span><strong>GoalPilot</strong></button>
+          <nav class="mobile-nav" aria-label="移动端工作区导航">
+            <button type="button" :class="{ active: activeView === 'create' }" @click="navigate('create')">工作台</button>
+            <button type="button" :class="{ active: activeView === 'library' }" @click="navigate('library')">目标库</button>
+          </nav>
+          <div class="topbar-context">
+            <span class="date-number">{{ todayDay }}</span>
+            <span class="date-copy"><strong>{{ todayWeekday }}</strong><small>{{ todayMonth }}</small></span>
+            <i></i>
+            <span class="workspace-status"><b class="live-dot"></b>{{ activeView === 'create' ? '目标规划中' : `共 ${goalTotal} 个目标` }}</span>
+          </div>
+          <div class="current-user">
+            <span><small>WELCOME BACK</small><strong>{{ user.username }}</strong></span>
+            <i>{{ userInitial }}</i>
+            <button type="button" @click="$emit('logout')">退出</button>
+          </div>
         </div>
       </header>
 
       <div class="workspace-content">
         <Transition name="workspace-swap" mode="out-in">
-          <div v-if="activeView === 'create'" key="create" class="view-stack">
-            <GoalComposer
-              v-model="goalText"
-              :loading="activeRequest === 'analysis'"
-              :error-title="!result ? errorTitle : ''"
-              :error-message="!result ? errorMessage : ''"
-              :user-name="user.username"
+          <div v-if="activeView === 'create'" key="create" class="create-dashboard">
+            <div class="view-stack">
+              <GoalComposer
+                v-model="goalText"
+                :loading="activeRequest === 'analysis'"
+                :error-title="!result ? errorTitle : ''"
+                :error-message="!result ? errorMessage : ''"
+                :user-name="user.username"
+                :current-goal-id="activeGoalId"
+                :analyzed="!!result && goalText.trim() === activeSavedText"
+                @submit="submitGoal"
+                @dismiss-error="errorMessage = ''"
+              />
+
+              <AnalysisResult
+                v-if="result"
+                v-model:answers="clarificationAnswers"
+                :result="result"
+                :active-request="activeRequest"
+                :history-count="clarificationHistory.length"
+                :error-title="errorTitle"
+                :error-message="errorMessage"
+                :plan-exists="!!plan"
+                @reset="resetAll"
+                @clarify="submitClarification"
+                @generate-plan="createPlan"
+                @dismiss-error="errorMessage = ''"
+              />
+
+              <PlanRoadmap v-if="plan" :plan="plan" @reset="resetAll" />
+            </div>
+
+            <TodayPanel
+              :date="today"
+              :active-step="activeStep"
+              :goal-total="goalTotal"
               :current-goal-id="activeGoalId"
-              @submit="submitGoal"
-              @dismiss-error="errorMessage = ''"
+              :readiness="result?.readiness"
             />
-
-            <AnalysisResult
-              v-if="result"
-              v-model:answers="clarificationAnswers"
-              :result="result"
-              :active-request="activeRequest"
-              :history-count="clarificationHistory.length"
-              :error-title="errorTitle"
-              :error-message="errorMessage"
-              :plan-exists="!!plan"
-              @reset="resetAll"
-              @clarify="submitClarification"
-              @generate-plan="createPlan"
-              @dismiss-error="errorMessage = ''"
-            />
-
-            <PlanRoadmap v-if="plan" :plan="plan" @reset="resetAll" />
           </div>
 
           <GoalLibrary
@@ -328,30 +373,42 @@ onMounted(() => loadGoalPage(1))
 
 <style scoped>
 .workspace-shell { min-height: 100vh; background: var(--canvas); }
-.workspace-main { position: relative; min-height: 100vh; margin-left: 258px; display: flex; flex-direction: column; }
-.workspace-main::before { content: ''; position: fixed; z-index: 0; top: 70px; right: 0; bottom: 0; left: 258px; pointer-events: none; opacity: .33; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(circle at 85% 7%, black, transparent 38%); }
-.topbar { position: sticky; z-index: 20; top: 0; height: 70px; padding: 0 clamp(25px, 3vw, 48px); display: flex; align-items: center; justify-content: space-between; background: rgba(243, 241, 236, .92); border-bottom: 1px solid var(--line-strong); backdrop-filter: blur(16px); }
-.topbar-context { display: flex; align-items: center; gap: 9px; color: var(--ink-500); font-size: 10px; font-weight: 600; letter-spacing: .03em; }
-.topbar-context > i { width: 1px; height: 13px; background: var(--line-strong); }
-.live-dot { width: 7px; height: 7px; background: var(--moss-600); border: 2px solid var(--moss-200); border-radius: 50%; box-sizing: content-box; }
+.workspace-main { position: relative; min-height: 100vh; margin-left: 248px; display: flex; flex-direction: column; }
+.workspace-main::before { content: ''; position: fixed; z-index: 0; top: 64px; right: 0; bottom: 0; left: 248px; pointer-events: none; background: radial-gradient(circle at 84% 5%, rgba(214,164,180,.14), transparent 24%), radial-gradient(circle at 64% 18%, rgba(104,113,170,.09), transparent 28%), radial-gradient(circle at 11% 88%, rgba(112,134,154,.07), transparent 29%); }
+.topbar { position: sticky; z-index: 20; top: 0; height: 64px; background: rgba(247,248,250,.86); border-bottom: 1px solid rgba(213,215,223,.82); backdrop-filter: blur(18px) saturate(1.2); }
+.topbar-inner { width: min(2000px, calc(100% - 64px)); height: 100%; margin-inline: auto; display: flex; align-items: center; justify-content: space-between; }
+.topbar-context { display: flex; align-items: center; gap: 10px; color: var(--ink-500); }
+.date-number { width: 34px; height: 34px; display: grid; place-items: center; color: #fff; background: linear-gradient(145deg, #8b91c2, #6871aa); border-radius: 11px; box-shadow: 0 6px 14px rgba(104,113,170,.18); font-size: 13px; font-weight: 700; }
+.date-copy strong, .date-copy small { display: block; }
+.date-copy strong { color: var(--ink); font-size: 10px; }.date-copy small { margin-top: 2px; color: var(--ink-400); font-size: 8px; }
+.topbar-context > i { width: 1px; height: 27px; margin-inline: 5px; background: var(--line-strong); }
+.workspace-status { padding: 7px 10px; display: inline-flex; align-items: center; gap: 7px; color: var(--ink-600); background: rgba(255,255,255,.72); border: 1px solid var(--line); border-radius: 999px; font-size: 9px; font-weight: 650; }
+.live-dot { width: 6px; height: 6px; display: block; background: linear-gradient(145deg, #e3ad9e, #c4819b); border-radius: 50%; box-shadow: 0 0 0 4px rgba(213,150,167,.13); }
 .current-user { display: flex; align-items: center; gap: 10px; }
 .current-user > span { text-align: right; }
 .current-user small, .current-user strong { display: block; }
 .current-user small { color: var(--ink-400); font-size: 7px; font-weight: 750; letter-spacing: .13em; }
 .current-user strong { margin-top: 3px; color: var(--ink); font-size: 11px; }
-.current-user > i { width: 34px; height: 34px; display: grid; place-items: center; color: var(--paper); background: var(--coral-600); border: 2px solid var(--paper); border-radius: 50%; box-shadow: 0 0 0 1px var(--coral-600); font-family: var(--display); font-size: 15px; font-style: normal; }
+.current-user > i { width: 32px; height: 32px; display: grid; place-items: center; color: var(--paper); background: linear-gradient(145deg, var(--coral-500), var(--coral-700)); border: 2px solid var(--paper); border-radius: 10px; box-shadow: 0 0 0 1px var(--coral-300); font-family: var(--display); font-size: 13px; font-style: normal; }
 .current-user button { padding: 7px 9px; color: var(--ink-500); background: transparent; border: 0; border-left: 1px solid var(--line-strong); font-size: 9px; }
 .current-user button:hover { color: var(--coral-700); }
 .mobile-brand, .mobile-nav { display: none; }
-.workspace-content { position: relative; z-index: 1; width: min(1760px, calc(100% - clamp(54px, 6vw, 96px))); margin-right: auto; margin-left: clamp(27px, 3vw, 48px); padding: clamp(30px, 3.2vw, 46px) 0 64px; flex: 1; }
-.view-stack { display: grid; gap: 48px; }
-.workspace-footer { position: relative; z-index: 1; width: min(1760px, calc(100% - clamp(54px, 6vw, 96px))); margin-right: auto; margin-left: clamp(27px, 3vw, 48px); padding: 19px 0 24px; display: flex; justify-content: space-between; color: var(--ink-400); border-top: 1px solid var(--line-strong); font-size: 8px; font-weight: 700; letter-spacing: .13em; }
+.workspace-content { position: relative; z-index: 1; width: min(2000px, calc(100% - 64px)); margin-inline: auto; padding: clamp(28px, 3vw, 42px) 0 60px; flex: 1; }
+.create-dashboard { display: grid; }
+.create-dashboard > :deep(.today-panel) { display: none; }
+.view-stack { display: grid; gap: 42px; }
+.workspace-footer { position: relative; z-index: 1; width: min(2000px, calc(100% - 64px)); margin-inline: auto; padding: 18px 0 23px; display: flex; justify-content: space-between; color: var(--ink-400); border-top: 1px solid var(--line); font-size: 8px; font-weight: 700; letter-spacing: .13em; }
 .workspace-swap-enter-active, .workspace-swap-leave-active { transition: opacity .2s ease, transform .25s ease; }
 .workspace-swap-enter-from { opacity: 0; transform: translateY(10px); }
 .workspace-swap-leave-to { opacity: 0; transform: translateY(-6px); }
+@media (min-width: 1900px) {
+  .create-dashboard { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 20px; }
+  .create-dashboard > :deep(.today-panel) { display: grid; }
+}
 @media (max-width: 1050px) {
   .workspace-main { margin-left: 0; }
   .workspace-main::before { left: 0; }
+  .topbar-inner { width: calc(100% - 32px); }
   .workspace-content, .workspace-footer { margin-right: auto; margin-left: auto; }
   .mobile-brand { padding: 0; display: flex; align-items: center; gap: 8px; color: var(--ink); background: transparent; border: 0; }
   .mobile-brand > span { position: relative; width: 31px; height: 31px; display: block; background: var(--coral-500); border-radius: 50% 50% 50% 9px; transform: rotate(-8deg); }
@@ -363,7 +420,8 @@ onMounted(() => loadGoalPage(1))
   .topbar-context { display: none; }
 }
 @media (max-width: 620px) {
-  .topbar { height: 63px; padding: 0 15px; }
+  .topbar { height: 63px; }
+  .topbar-inner { width: calc(100% - 28px); }
   .mobile-brand strong { display: none; }
   .current-user > span, .current-user button { display: none; }
   .workspace-content, .workspace-footer { width: calc(100% - 28px); margin-right: auto; margin-left: auto; }

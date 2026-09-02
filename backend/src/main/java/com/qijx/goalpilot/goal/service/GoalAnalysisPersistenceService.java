@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.qijx.goalpilot.goal.domain.GoalReadiness;
 import com.qijx.goalpilot.goal.domain.GoalStatus;
 import com.qijx.goalpilot.goal.dto.GoalAnalysisResponse;
@@ -41,15 +42,104 @@ public class GoalAnalysisPersistenceService {
     public GoalAnalysisSnapshotResponse saveInitialAnalysis(Goal goal, GoalAnalysisResponse analysisResult){
         LocalDateTime now = LocalDateTime.now();
 
+        GoalAnalysis analysis = saveAnalysis(
+            goal.getId(),
+            1,
+            analysisResult,
+            now
+        );
+
+        List<GoalClarificationQuestion> savedQuestions = saveQuestions(analysis.getId(), analysisResult.clarificationQuestions(), now);
+
+        updateGoalStatus(goal, analysisResult.readiness(), now);
+
+        return toResponse(analysis, savedQuestions);
+    }
+
+    @Transactional
+    public GoalAnalysisSnapshotResponse saveClarifiedAnalysis(
+        Goal goal,
+        GoalAnalysis previousAnalysis,
+        List<GoalClarificationQuestion> answeredQuestions,
+        GoalAnalysisResponse analysisResult
+    ){
+        LocalDateTime now = LocalDateTime.now();
+
+        for(GoalClarificationQuestion question : answeredQuestions){
+            question.setAnsweredAt(now);
+
+            int updatedQuestionRows = questionMapper.updateById(question);
+
+            if(updatedQuestionRows != 1){
+                throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "澄清回答保存失败"
+                );
+            }
+        }
+
+        GoalAnalysis analysis = saveAnalysis(
+            goal.getId(),
+            previousAnalysis.getVersionNumber() + 1,
+            analysisResult,
+            now
+        );
+
+        List<GoalClarificationQuestion> savedQuestions = saveQuestions(
+            analysis.getId(),
+            analysisResult.clarificationQuestions(),
+            now
+        );
+
+        updateGoalStatus(goal, analysisResult.readiness(), now);
+
+        return toResponse(analysis, savedQuestions);
+    }
+
+    public GoalAnalysis findLatestAnalysis(Long goalId){
+        GoalAnalysis analysis = goalAnalysisMapper.selectOne(
+            new LambdaQueryWrapper<GoalAnalysis>()
+                .eq(GoalAnalysis::getGoalId, goalId)
+                .orderByDesc(GoalAnalysis::getVersionNumber)
+                .last("LIMIT 1")
+        );
+
+        if(analysis == null){
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "目标缺少分析记录");
+        }
+
+        return analysis;
+    }
+
+    public List<GoalClarificationQuestion> findQuestionsByAnalysisId(Long analysisId){
+        List<GoalClarificationQuestion> questions = questionMapper.selectList(
+            new LambdaQueryWrapper<GoalClarificationQuestion>()
+                .eq(GoalClarificationQuestion::getAnalysisId, analysisId)
+                .orderByAsc(GoalClarificationQuestion::getSortOrder)
+        );
+
+        return questions;
+    }
+
+    public List<GoalClarificationQuestion> findAnsweredHistory(Long goalId){
+        return questionMapper.selectAnsweredByGoalId(goalId);
+    }
+
+    private GoalAnalysis saveAnalysis(
+        Long goalId,
+        Integer versionNumber,
+        GoalAnalysisResponse analysisResult,
+        LocalDateTime createdAt
+    ){
         GoalAnalysis analysis = new GoalAnalysis();
 
-        analysis.setGoalId(goal.getId());
-        analysis.setVersionNumber(1);
+        analysis.setGoalId(goalId);
+        analysis.setVersionNumber(versionNumber);
         analysis.setGoalSummary(analysisResult.goalSummary().trim());
         analysis.setKnownInformation(normalizeInformation(analysisResult.knownInformation()));
         analysis.setMissingInformation(normalizeInformation(analysisResult.missingInformation()));
         analysis.setReadiness(analysisResult.readiness());
-        analysis.setCreatedAt(now);
+        analysis.setCreatedAt(createdAt);
 
         int insertedAnalysisRows = goalAnalysisMapper.insert(analysis);
 
@@ -57,18 +147,7 @@ public class GoalAnalysisPersistenceService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "目标分析保存失败");
         }
 
-        List<GoalClarificationQuestion> savedQuestions = saveQuestions(analysis.getId(), analysisResult.clarificationQuestions(), now);
-
-        goal.setStatus(mapGoalStatus(analysisResult.readiness()));
-        goal.setUpdatedAt(now);
-
-        int updatedGoalRows = goalMapper.updateById(goal);
-
-        if(updatedGoalRows != 1){
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "目标状态更新失败");
-        }
-
-        return toResponse(analysis, savedQuestions);
+        return analysis;
     }
 
     private List<String> normalizeInformation(List<String> information){
@@ -110,6 +189,21 @@ public class GoalAnalysisPersistenceService {
 
             case NEEDS_CLARIFICATION -> GoalStatus.NEEDS_CLARIFICATION;
         };
+    }
+
+    private void updateGoalStatus(
+        Goal goal,
+        GoalReadiness readiness,
+        LocalDateTime updatedAt
+    ){
+        goal.setStatus(mapGoalStatus(readiness));
+        goal.setUpdatedAt(updatedAt);
+
+        int updatedGoalRows = goalMapper.updateById(goal);
+
+        if(updatedGoalRows != 1){
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "目标状态更新失败");
+        }
     }
 
     private GoalAnalysisSnapshotResponse toResponse(

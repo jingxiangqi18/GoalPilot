@@ -14,7 +14,7 @@
 
 ## Plan Generation 请求边界
 
-- [ ] 限制客户端提交的 Goal Analysis 上下文大小，避免异常请求生成过长 Prompt。
+- [x] 限制进入 Plan Generation 的 Goal Analysis 上下文大小。
 
   后续为 `goalSummary`、`knownInformation` 增加合理限制，例如：
 
@@ -23,6 +23,6 @@
   - 每项已知信息不超过 500 个字符。
   - Goal Analysis 的模型输出校验与 Plan Generation 的请求校验保持一致。
 
-- [ ] Goal 和分析结果持久化后，将计划生成请求从提交完整 `GoalAnalysisResponse` 改为提交 `goalId`。
+- [x] Goal 和分析结果持久化后，将计划生成请求从提交完整 `GoalAnalysisResponse` 改为提交 `goalId`。
 
   由后端根据 `goalId` 读取可信的目标和最终分析结果，避免依赖客户端回传的分析内容。

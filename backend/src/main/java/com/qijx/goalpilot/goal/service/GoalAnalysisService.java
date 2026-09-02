@@ -12,7 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.qijx.goalpilot.goal.domain.GoalReadiness;
 import com.qijx.goalpilot.goal.dto.GoalAnalysisResponse;
-import com.qijx.goalpilot.goal.dto.GoalClarificationAnswer;
+import com.qijx.goalpilot.goal.dto.GoalClarificationContext;
 
 @Service
 public class GoalAnalysisService {
@@ -54,6 +54,7 @@ public class GoalAnalysisService {
     private static final int MAX_MISSING_INFORMATION_COUNT = 10;
     private static final int MAX_INFORMATION_ITEM_LENGTH = 500;
     private static final int MAX_CLARIFICATION_QUESTION_LENGTH = 300;
+    private static final int MAX_CLARIFICATION_HISTORY_COUNT = 30;
 
     public GoalAnalysisService(ChatClient.Builder chatClientBuilder){
         this.chatClient = chatClientBuilder.build();
@@ -68,7 +69,7 @@ public class GoalAnalysisService {
         return analysis;
     }
 
-    public GoalAnalysisResponse clarifyGoal(String goalText, List<GoalClarificationAnswer> clarificationHistory){
+    public GoalAnalysisResponse clarifyGoal(String goalText, List<GoalClarificationContext> clarificationHistory){
         String normalizedGoalText = normalizeGoalText(goalText);
 
         validateClarificationHistory(clarificationHistory);
@@ -206,16 +207,14 @@ public class GoalAnalysisService {
         return true;
     }
 
-    private void validateClarificationHistory(List<GoalClarificationAnswer> clarificationHistory){
+    private void validateClarificationHistory(List<GoalClarificationContext> clarificationHistory){
         if(clarificationHistory == null
             || clarificationHistory.isEmpty()
-            || clarificationHistory.size() > 10){
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "澄清回答数量必须在1到10项之间");
+            || clarificationHistory.size() > MAX_CLARIFICATION_HISTORY_COUNT){
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "澄清回答历史数量不正确");
         }
 
-        Set<String> questions = new HashSet<>();
-
-        for(GoalClarificationAnswer clarification : clarificationHistory){
+        for(GoalClarificationContext clarification : clarificationHistory){
             if(clarification == null
                 || clarification.question() == null
                 || clarification.question().isBlank()
@@ -224,16 +223,10 @@ public class GoalAnalysisService {
             ){
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "澄清问题和回答不能为空");
             }
-
-            String normalizedQuestion = clarification.question().trim();
-
-            if(!questions.add(normalizedQuestion)){
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能重复提交同一个澄清问题");
-            }
         }
     }
 
-    private String buildClarificationUserPrompt(String normalizedGoalText, List<GoalClarificationAnswer> clarificationHistory){
+    private String buildClarificationUserPrompt(String normalizedGoalText, List<GoalClarificationContext> clarificationHistory){
         StringBuilder promptBuilder = new StringBuilder();
 
         promptBuilder
@@ -243,7 +236,7 @@ public class GoalAnalysisService {
                 .append("用户已经确认补充的信息：\n\n");
 
         for(int index = 0; index < clarificationHistory.size(); index++){
-            GoalClarificationAnswer clarification = clarificationHistory.get(index);
+            GoalClarificationContext clarification = clarificationHistory.get(index);
 
             promptBuilder
                     .append("问题 ")

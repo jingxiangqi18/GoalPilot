@@ -16,6 +16,7 @@ const activeFilter = ref('ALL')
 const filters = [
   { value: 'ALL', label: '全部' },
   { value: 'DRAFT', label: '草稿' },
+  { value: 'NEEDS_CLARIFICATION', label: '待补充' },
   { value: 'READY_TO_PLAN', label: '待规划' },
   { value: 'ACTIVE', label: '进行中' },
   { value: 'COMPLETED', label: '已完成' },
@@ -125,7 +126,8 @@ function formatDate(value) {
           </button>
           <footer>
             <button type="button" @click="emit('select', goal.id)">查看详情</button>
-            <button type="button" class="continue-button" @click="emit('continue', goal)">继续梳理 <span>↗</span></button>
+            <button v-if="goal.status === 'DRAFT'" type="button" class="continue-button" @click="emit('continue', goal)">继续分析 <span>↗</span></button>
+            <button v-else type="button" class="state-button" @click="emit('select', goal.id)">查看进度 <span>→</span></button>
           </footer>
         </article>
       </div>
@@ -155,7 +157,7 @@ function formatDate(value) {
 .library-hero > div { max-width: 790px; }
 .kicker, .section-label { color: var(--coral-700); font-size: 11px; font-weight: 750; letter-spacing: .16em; }
 .library-hero h1 { margin: 10px 0 11px; color: var(--ink); font-family: var(--display); font-size: clamp(36px, 4vw, 56px); font-weight: 650; line-height: 1.03; letter-spacing: -.045em; }
-.library-hero h1 em { color: var(--coral-600); font-weight: inherit; }
+.library-hero h1 em { color: var(--coral-600); background: linear-gradient(90deg, #6871aa, #bd7e97); background-clip: text; -webkit-background-clip: text; font-weight: inherit; -webkit-text-fill-color: transparent; }
 .library-hero p { max-width: 650px; margin: 0; color: var(--ink-600); font-size: 13px; line-height: 1.7; }
 .new-goal-button { min-height: 48px; padding: 0 20px; display: inline-flex; align-items: center; gap: 9px; color: var(--paper); background: var(--ink); border: 1px solid var(--ink); border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; transition: transform .2s, background .2s; }
 .new-goal-button:hover { background: var(--moss-800); transform: translateY(-2px); }
@@ -164,12 +166,12 @@ function formatDate(value) {
 .stat-strip { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)) 1.25fr; background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
 .stat-strip article { min-height: 102px; padding: 18px 20px; display: flex; align-items: center; gap: 16px; border-right: 1px solid var(--line); }
 .stat-index { width: 36px; height: 36px; display: grid; place-items: center; color: var(--paper); background: var(--ink); border-radius: 50%; font-family: var(--display); font-size: 14px; }
-.stat-index.coral { background: var(--coral-600); }
+.stat-index.coral { background: linear-gradient(145deg, var(--coral-500), var(--rose-500)); }
 .stat-index.moss { background: var(--moss-700); }
 .stat-strip strong, .stat-strip small { display: block; }
 .stat-strip strong { color: var(--ink); font-family: var(--display); font-size: 34px; font-weight: 650; line-height: 1; }
 .stat-strip small { margin-top: 5px; color: var(--ink-500); font-size: 11px; }
-.stat-strip > p { margin: 0; padding: 18px 24px; display: flex; align-items: center; color: var(--paper); background: var(--moss-800); border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0; font-family: var(--editorial); font-size: 22px; line-height: 1.05; }
+.stat-strip > p { margin: 0; padding: 18px 24px; display: flex; align-items: center; color: var(--paper); background: linear-gradient(135deg, #293041, #1d2028); border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0; font-family: var(--display); font-size: 18px; font-weight: 600; line-height: 1.18; }
 .stat-strip > p em { color: var(--coral-300); }
 
 .archive-module { overflow: hidden; background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-md); }
@@ -199,6 +201,7 @@ function formatDate(value) {
 .goal-card > footer { padding: 11px 14px; display: flex; justify-content: space-between; gap: 8px; background: var(--paper); border-top: 1px solid var(--line); }
 .goal-card > footer button { padding: 6px 4px; color: var(--ink-500); background: transparent; border: 0; font-size: 11px; font-weight: 650; }
 .goal-card > footer .continue-button { color: var(--coral-700); }
+.goal-card > footer .state-button { color: var(--moss-700); }
 .goal-card > footer button:hover { color: var(--ink); }
 .skeleton-card { min-height: 260px; padding: 24px; }
 .skeleton-card i { height: 14px; margin-bottom: 18px; display: block; background: linear-gradient(90deg, var(--canvas) 25%, var(--paper) 50%, var(--canvas) 75%); background-size: 200% 100%; border-radius: 8px; animation: shimmer 1.3s infinite; }
@@ -230,6 +233,10 @@ function formatDate(value) {
   .stat-strip > p { display: none; }
   .stat-strip article:nth-child(3) { border-right: 0; }
   .goal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1900px) {
+  .goal-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {

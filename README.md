@@ -4,9 +4,9 @@ GoalPilot 是一个面向个人目标管理的 AI 应用，目标是构建“目
 
 后端采用 Java、Spring Boot 和 Spring AI，通过 OpenAI 兼容接口接入 DeepSeek。业务模型保持为普通 Java 类型，不依赖具体的大模型供应商或 Spring AI 类型。
 
-## 当前阶段：账户认证、目标理解与初步计划生成
+## 当前阶段：账户认证、目标分析与计划草稿持久化
 
-当前后端已经实现从自然语言目标到初步执行计划的基础链路：使用 Spring AI `ChatClient` 调用 DeepSeek，通过 Structured Output 映射为 GoalPilot 自己的 Java DTO，并在 Service 中校验模型输出是否符合业务约束。
+当前后端已经实现从登录用户创建 Goal、持久化目标分析和澄清记录，到生成并保存计划草稿的基础链路。AI 能力使用 Spring AI `ChatClient` 调用 DeepSeek，通过 Structured Output 映射为 GoalPilot 自己的 Java DTO，并在写入数据库前校验模型输出。
 
 当前已实现的接口：
 
@@ -14,17 +14,20 @@ GoalPilot 是一个面向个人目标管理的 AI 应用，目标是构建“目
 POST http://localhost:8080/api/auth/register
 POST http://localhost:8080/api/auth/login
 GET  http://localhost:8080/api/auth/me
-POST http://localhost:8080/api/goals/analyze
-POST http://localhost:8080/api/goals/clarify
+POST http://localhost:8080/api/goals
+GET  http://localhost:8080/api/goals
+GET  http://localhost:8080/api/goals/{goalId}
+POST http://localhost:8080/api/goals/{goalId}/analyze
+POST http://localhost:8080/api/goals/{goalId}/clarifications
 POST http://localhost:8080/api/plans/generate
 ```
 
 注册用户保存在 MySQL 中，登录成功后签发 JWT。除注册、登录和健康检查外，
 其余接口均需要在 `Authorization` 请求头中携带 Bearer Token。
 
-目标分析会返回目标概述、已知信息、缺失信息、信息充分性状态和最多 3 个澄清问题。用户补充回答后可以重新分析；当状态为 `READY` 时，可以生成包含阶段、阶段目标、时间范围、具体任务和完成标准的结构化初步计划。
+Goal、分析快照、澄清问题与回答均保存在 MySQL 中，并按登录用户校验所有权。目标达到 `READY_TO_PLAN` 后，后端根据 `goalId` 读取可信的最新分析，生成并保存包含阶段和任务的计划草稿。
 
-当前只持久化用户账户；Goal、分析结果和 Plan 仍然只存在于单次请求中，尚未保存到数据库，也没有计划版本管理。
+当前保存的是尚待用户确认的 Plan 草稿；草稿确认、正式 `Plan V1` 和任务执行属于下一阶段。
 
 ## 本地启动
 
@@ -63,35 +66,25 @@ curl -X POST http://localhost:8080/api/auth/login \
   -d '{"account":"user@example.com","password":"secret123"}'
 ```
 
-Goal Analysis 测试（将 `<access-token>` 替换为登录响应中的 Token）：
+创建 Goal 后，使用返回的 `id` 发起分析：
 
 ```bash
-curl -X POST http://localhost:8080/api/goals/analyze \
-  -H "Content-Type: application/json" \
+curl -X POST http://localhost:8080/api/goals \
   -H "Authorization: Bearer <access-token>" \
+  -H "Content-Type: application/json" \
   -d '{"goalText":"我想在三个月内完成一个适合找 Java 后端实习的项目"}'
+
+curl -X POST http://localhost:8080/api/goals/<goal-id>/analyze \
+  -H "Authorization: Bearer <access-token>"
 ```
 
-Plan Generation 测试需要提交一个状态为 `READY` 的最终分析结果：
+当 Goal 状态为 `READY_TO_PLAN` 时，只提交 `goalId` 生成计划草稿：
 
 ```bash
 curl -X POST http://localhost:8080/api/plans/generate \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <access-token>" \
-  -d '{
-    "goalText":"我想在三个月内完成一个适合找 Java 后端实习的项目",
-    "goalAnalysis":{
-      "goalSummary":"三个月内完成一个适合 Java 后端求职展示的项目",
-      "knownInformation":[
-        "目标方向是 Java 后端",
-        "完成期限是三个月",
-        "项目需要用于求职展示"
-      ],
-      "missingInformation":[],
-      "readiness":"READY",
-      "clarificationQuestions":[]
-    }
-  }'
+  -d '{"goalId": <goal-id>}'
 ```
 
 ## 当前目录

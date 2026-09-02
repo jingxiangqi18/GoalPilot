@@ -21,14 +21,18 @@ export function clearAccessToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-function getErrorMessage(data, status) {
+function getErrorMessage(data, status, path) {
   if (typeof data === 'string' && data.trim()) return data
   if (data?.message) return data.message
   if (data?.detail) return data.detail
 
   if (status === 400) return '提交的数据不符合要求，请检查后重试。'
   if (status === 401) return '账号或密码错误，或当前登录状态已失效。'
-  if (status === 409) return '用户名或邮箱已被使用。'
+  if (status === 409) {
+    return path.startsWith('/api/auth/')
+      ? '用户名或邮箱已被使用。'
+      : '目标当前状态不允许重复执行此操作，请刷新目标库后查看最新状态。'
+  }
   if (status === 502) return 'AI 返回了无效结果，请稍后再试。'
   return `请求失败（HTTP ${status}）`
 }
@@ -71,7 +75,7 @@ async function requestJson(path, options = {}) {
       window.dispatchEvent(new CustomEvent('goalpilot:unauthorized'))
     }
 
-    throw new ApiError(getErrorMessage(data, response.status), response.status)
+    throw new ApiError(getErrorMessage(data, response.status, path), response.status)
   }
 
   return data
@@ -87,4 +91,3 @@ export function postJson(path, body) {
     body: JSON.stringify(body),
   })
 }
-

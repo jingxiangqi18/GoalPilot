@@ -13,7 +13,21 @@ const props = defineProps({
 
 const emit = defineEmits(['reset', 'clarify', 'generate-plan', 'dismiss-error'])
 const isReady = computed(() => props.result.readiness === 'READY')
-const answeredCount = computed(() => answers.value.filter((answer) => answer.trim()).length)
+const answeredCount = computed(() => answers.value.filter((answer) => String(answer || '').trim()).length)
+const allQuestionsAnswered = computed(() => {
+  const questions = props.result.clarificationQuestions
+  return questions.length > 0
+    && questions.every((item, index) => item.questionId && String(answers.value[index] || '').trim())
+})
+const summaryPoints = computed(() => {
+  const text = String(props.result.goalSummary || '').trim()
+  const points = text.split(/[，,；;。！？!?]+/).map((item) => item.trim()).filter(Boolean)
+
+  if (points.length <= 6) return points.length ? points : ['暂未形成目标概述']
+  return [...points.slice(0, 5), points.slice(5).join('，')]
+})
+const summaryLead = computed(() => summaryPoints.value[0])
+const summaryDetails = computed(() => summaryPoints.value.slice(1))
 const snapshotLabel = computed(() => {
   if (!props.result.analysisId) return '实时分析'
   const version = props.result.versionNumber ? `V${props.result.versionNumber}` : 'V1'
@@ -32,7 +46,7 @@ const snapshotTime = computed(() => {
 <template>
   <section id="analysis" class="analysis-module">
     <header class="module-heading">
-      <div class="heading-index">02</div>
+      <div class="heading-index"><small>STEP</small><strong>02</strong></div>
       <div class="heading-copy">
         <span>ANALYSIS SNAPSHOT · 分析快照</span>
         <h2>目标画像</h2>
@@ -51,12 +65,23 @@ const snapshotTime = computed(() => {
 
     <article class="summary-panel panel">
       <div class="summary-topline">
-        <span>目标概述</span>
+        <span class="summary-label"><i></i><span><strong>目标概述</strong><small>GOAL BRIEF</small></span></span>
         <span class="status" :class="{ ready: isReady }">
           <i></i>{{ isReady ? '信息已充足' : '需要补充信息' }}
         </span>
       </div>
-      <p>{{ result.goalSummary }}</p>
+      <div class="summary-layout" :class="{ single: !summaryDetails.length }">
+        <div class="summary-lead">
+          <span><i></i>核心意图</span>
+          <h3>{{ summaryLead }}</h3>
+        </div>
+        <ol v-if="summaryDetails.length" class="summary-points">
+          <li v-for="(item, index) in summaryDetails" :key="`${index}-${item}`">
+            <span>{{ String(index + 1).padStart(2, '0') }}</span>
+            <p>{{ item }}</p>
+          </li>
+        </ol>
+      </div>
     </article>
 
     <div class="insight-grid">
@@ -67,7 +92,11 @@ const snapshotTime = computed(() => {
           </span>
           <div><h3>已经明确</h3><p>{{ result.knownInformation.length }} 项已知信息</p></div>
         </header>
-        <ul><li v-for="item in result.knownInformation" :key="item">{{ item }}</li></ul>
+        <ul>
+          <li v-for="(item, index) in result.knownInformation" :key="item">
+            <span class="point-index">{{ String(index + 1).padStart(2, '0') }}</span><p>{{ item }}</p>
+          </li>
+        </ul>
       </article>
 
       <article class="insight-panel panel missing">
@@ -76,7 +105,9 @@ const snapshotTime = computed(() => {
           <div><h3>{{ isReady ? '没有关键缺口' : '还需要明确' }}</h3><p>{{ result.missingInformation.length }} 项缺失信息</p></div>
         </header>
         <ul v-if="result.missingInformation.length">
-          <li v-for="item in result.missingInformation" :key="item">{{ item }}</li>
+          <li v-for="(item, index) in result.missingInformation" :key="item">
+            <span class="point-index">{{ String(index + 1).padStart(2, '0') }}</span><p>{{ item }}</p>
+          </li>
         </ul>
         <p v-else class="empty-copy">当前信息足以支撑一份合理的初步计划。</p>
       </article>
@@ -89,7 +120,7 @@ const snapshotTime = computed(() => {
           <h3>补充关键信息</h3>
           <p>只需回答会明显影响计划方向的问题。</p>
         </div>
-        <span v-if="historyCount" class="history-badge">已累计 {{ historyCount }} 项回答</span>
+        <span v-if="historyCount" class="history-badge">本次会话已保存 {{ historyCount }} 项回答</span>
       </header>
 
       <div class="question-list">
@@ -104,8 +135,11 @@ const snapshotTime = computed(() => {
       </div>
 
       <footer>
-        <span>已回答 {{ answeredCount }} / {{ result.clarificationQuestions.length }}</span>
-        <button class="primary-button" :disabled="answeredCount === 0 || !!activeRequest" @click="emit('clarify')">
+        <span>
+          已回答 {{ answeredCount }} / {{ result.clarificationQuestions.length }}
+          <small>本轮问题需完整提交</small>
+        </span>
+        <button class="primary-button" :disabled="!allQuestionsAnswered || !!activeRequest" @click="emit('clarify')">
           <span v-if="activeRequest === 'clarification'" class="spinner"></span>
           <template v-else>提交并重新分析 <span>→</span></template>
         </button>
@@ -121,9 +155,9 @@ const snapshotTime = computed(() => {
         <h3>信息已经准备好</h3>
         <p>现在可以根据原始目标和已确认的信息生成结构化行动计划。</p>
       </div>
-      <button class="light-button" :disabled="!!activeRequest" @click="emit('generate-plan')">
+      <button class="light-button" :disabled="!!activeRequest || planExists" @click="emit('generate-plan')">
         <span v-if="activeRequest === 'plan'" class="spinner dark"></span>
-        <template v-else>{{ planExists ? '重新生成计划' : '生成执行计划' }} <span>→</span></template>
+        <template v-else>{{ planExists ? '计划草稿已保存' : '生成执行计划' }} <span>{{ planExists ? '✓' : '→' }}</span></template>
       </button>
     </article>
   </section>
@@ -133,44 +167,63 @@ const snapshotTime = computed(() => {
 .analysis-module {
   scroll-margin-top: 24px;
   display: grid;
-  gap: 20px;
+  gap: 18px;
+  font-family: var(--text-cn);
 }
 
 .module-heading {
-  padding-top: 32px;
+  padding: 30px 2px 3px;
   display: grid;
-  grid-template-columns: 54px 1fr auto;
-  gap: 17px;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 16px;
   align-items: center;
   border-top: 1px solid var(--line-strong);
 }
 
 .heading-index {
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 54px;
+  padding: 7px 0 6px;
   display: grid;
+  align-content: space-between;
   place-items: center;
   color: var(--paper);
-  background: var(--coral-600);
-  border-radius: 12px;
-  font-family: var(--serif);
-  font-size: 20px;
+  background: linear-gradient(155deg, var(--coral-500), var(--coral-700));
+  border-radius: 13px;
+  box-shadow: 0 8px 20px rgba(81,89,141,.16);
+}
+
+.heading-index small {
+  color: rgba(255,255,255,.68);
+  font-family: var(--display);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+
+.heading-index strong {
+  font-family: var(--display);
+  font-size: 18px;
+  line-height: 1;
 }
 
 .heading-copy > span,
 .section-tag {
   color: var(--coral-700);
-  font-size: 11px;
+  font-family: var(--display);
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: .13em;
 }
 
 .heading-copy h2 {
-  margin: 3px 0 2px;
+  margin: 5px 0 3px;
   color: var(--ink);
-  font-family: var(--serif);
-  font-size: 42px;
-  line-height: 1;
+  font-family: var(--text-cn);
+  font-size: clamp(29px, 2.4vw, 35px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -.045em;
 }
 
 .heading-copy p,
@@ -178,7 +231,8 @@ const snapshotTime = computed(() => {
 .ready-panel p {
   margin: 4px 0 0;
   color: var(--ink-600);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.65;
 }
 
 .secondary-button {
@@ -205,20 +259,87 @@ const snapshotTime = computed(() => {
   box-shadow: var(--shadow-sm);
 }
 
-.summary-panel {
-  padding: 27px 30px 30px;
-  border-left: 4px solid var(--coral-500);
-}
+.summary-panel { position: relative; overflow: hidden; padding: 0; }
+.summary-panel::before { content: ''; position: absolute; z-index: 1; top: 0; bottom: 0; left: 0; width: 4px; background: linear-gradient(180deg, var(--coral-500), var(--rose-500)); }
 
 .summary-topline {
+  min-height: 64px;
+  padding: 13px 21px 13px 25px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  color: var(--ink-600);
-  font-size: 12px;
-  font-weight: 700;
+  background: linear-gradient(90deg, var(--canvas-soft), rgba(255,255,255,.96));
+  border-bottom: 1px solid var(--line);
 }
+
+.summary-label { display: flex; align-items: center; gap: 10px; }
+.summary-label > i { width: 30px; height: 30px; display: grid; place-items: center; background: var(--coral-100); border: 1px solid var(--coral-300); border-radius: 9px; }
+.summary-label > i::after { content: ''; width: 8px; height: 8px; background: var(--coral-600); border-radius: 2px; transform: rotate(45deg); }
+.summary-label strong, .summary-label small { display: block; }
+.summary-label strong { color: var(--ink-800); font-size: 12px; font-weight: 600; }
+.summary-label small { margin-top: 2px; color: var(--ink-400); font-family: var(--display); font-size: 7px; font-weight: 700; letter-spacing: .13em; }
+
+.summary-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(340px, .92fr);
+}
+
+.summary-layout.single { grid-template-columns: 1fr; }
+
+.summary-lead {
+  min-height: 210px;
+  padding: 29px 31px 31px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.summary-lead > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-500);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+
+.summary-lead > span i { width: 18px; height: 1px; background: var(--coral-500); }
+
+.summary-lead h3 {
+  max-width: 760px;
+  margin: 14px 0 0;
+  color: var(--ink-900);
+  font-family: var(--text-cn);
+  font-size: clamp(21px, 1.8vw, 27px);
+  font-weight: 600;
+  line-height: 1.55;
+  letter-spacing: -.025em;
+}
+
+.summary-points {
+  margin: 0;
+  padding: 15px 20px;
+  display: grid;
+  align-content: center;
+  background: rgba(248,248,250,.72);
+  border-left: 1px solid var(--line);
+  list-style: none;
+}
+
+.summary-points li {
+  min-height: 46px;
+  padding: 9px 4px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+}
+
+.summary-points li + li { border-top: 1px solid var(--line); }
+.summary-points li > span { padding-top: 2px; color: var(--coral-600); font-family: var(--display); font-size: 9px; font-weight: 700; }
+.summary-points p { margin: 0; color: var(--ink-700); font-size: 13px; font-weight: 400; line-height: 1.65; }
 
 .status {
   padding: 7px 11px;
@@ -245,16 +366,6 @@ const snapshotTime = computed(() => {
   border-radius: 50%;
 }
 
-.summary-panel > p {
-  max-width: 1040px;
-  margin: 20px 0 0;
-  color: var(--ink);
-  font-family: var(--serif);
-  font-size: clamp(24px, 2.4vw, 34px);
-  font-weight: 600;
-  line-height: 1.35;
-}
-
 .insight-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -266,8 +377,8 @@ const snapshotTime = computed(() => {
   padding: 25px 27px;
 }
 
-.insight-panel.known { background: var(--moss-100); border-color: var(--moss-300); }
-.insight-panel.missing { background: var(--coral-100); border-color: var(--coral-300); }
+.insight-panel.known { background: linear-gradient(145deg, var(--paper), var(--moss-100)); border-color: var(--moss-300); }
+.insight-panel.missing { background: linear-gradient(145deg, var(--paper), var(--coral-100)); border-color: var(--coral-300); }
 
 .insight-panel header {
   display: flex;
@@ -291,41 +402,39 @@ const snapshotTime = computed(() => {
 
 .missing .insight-icon { background: var(--coral-700); }
 .insight-icon svg { width: 20px; }
-.insight-panel h3 { margin: 0; color: var(--ink); font-size: 16px; }
+.insight-panel h3 { margin: 0; color: var(--ink); font-family: var(--text-cn); font-size: 16px; font-weight: 600; letter-spacing: -.015em; }
 .insight-panel header p { margin: 3px 0 0; color: var(--ink-600); font-size: 12px; }
 
 .insight-panel ul {
   margin: 18px 0 0;
   padding: 0;
+  display: grid;
+  gap: 8px;
   list-style: none;
 }
 
 .insight-panel li {
-  position: relative;
-  margin: 11px 0;
-  padding-left: 18px;
+  min-height: 46px;
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
   color: var(--ink-700);
-  font-size: 14px;
-  line-height: 1.55;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(213,215,223,.8);
+  border-radius: 9px;
+  transition: border-color .2s ease, background .2s ease, transform .2s ease;
 }
 
-.insight-panel li::before {
-  content: '';
-  position: absolute;
-  top: 0.65em;
-  left: 0;
-  width: 6px;
-  height: 6px;
-  background: var(--moss-700);
-  border-radius: 50%;
-}
-
-.missing li::before { background: var(--coral-700); }
+.insight-panel li:hover { background: var(--paper); border-color: var(--ink-300); transform: translateX(2px); }
+.insight-panel li p { margin: 0; font-size: 13px; font-weight: 400; line-height: 1.65; }
+.point-index { padding-top: 2px; color: var(--moss-700); font-family: var(--display); font-size: 9px; font-weight: 700; }
+.missing .point-index { color: var(--coral-700); }
 .empty-copy { margin: 20px 0 0; color: var(--ink-700); font-size: 14px; line-height: 1.6; }
 
 .clarify-panel { padding: 29px 30px; }
 .clarify-panel > header { display: flex; justify-content: space-between; gap: 24px; }
-.clarify-panel h3 { margin: 7px 0 0; color: var(--ink); font-size: 23px; }
+.clarify-panel h3 { margin: 7px 0 0; color: var(--ink); font-family: var(--text-cn); font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
 .history-badge { height: fit-content; padding: 7px 10px; color: var(--moss-800); background: var(--moss-100); border: 1px solid var(--moss-300); border-radius: 999px; font-size: 11px; font-weight: 600; }
 
 .question-list {
@@ -363,6 +472,7 @@ const snapshotTime = computed(() => {
 
 .clarify-panel footer { margin-top: 20px; padding-top: 19px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); }
 .clarify-panel footer > span { color: var(--ink-600); font-size: 12px; }
+.clarify-panel footer > span small { display: block; margin-top: 3px; color: var(--ink-400); font-size: 9px; font-weight: 600; }
 
 .primary-button,
 .light-button {
@@ -396,7 +506,7 @@ const snapshotTime = computed(() => {
 .ready-icon { width: 52px; height: 52px; display: grid; place-items: center; color: var(--moss-900); background: var(--coral-300); border-radius: 50%; }
 .ready-icon svg { width: 30px; }
 .section-tag.light { color: var(--coral-300); }
-.ready-panel h3 { margin: 6px 0 0; font-family: var(--serif); font-size: 27px; }
+.ready-panel h3 { margin: 6px 0 0; font-family: var(--text-cn); font-size: 25px; font-weight: 600; letter-spacing: -.02em; }
 .ready-panel p { color: rgba(255,255,255,.77); font-size: 13px; }
 .light-button { color: var(--moss-900); background: var(--paper); border: 1px solid var(--paper); }
 .light-button:hover:not(:disabled) { background: var(--canvas); }
@@ -412,8 +522,11 @@ const snapshotTime = computed(() => {
 
 @media (max-width: 720px) {
   .module-heading { grid-template-columns: 45px 1fr; }
-  .heading-index { width: 42px; height: 42px; }
+  .heading-index { width: 42px; height: 50px; }
   .heading-actions { grid-column: 1 / -1; flex-wrap: wrap; }
+  .summary-layout { grid-template-columns: 1fr; }
+  .summary-lead { min-height: auto; }
+  .summary-points { border-top: 1px solid var(--line); border-left: 0; }
   .insight-grid { grid-template-columns: 1fr; }
   .ready-panel { grid-template-columns: 45px 1fr; }
   .ready-icon { width: 44px; height: 44px; }
@@ -421,7 +534,10 @@ const snapshotTime = computed(() => {
 }
 
 @media (max-width: 540px) {
-  .summary-panel, .insight-panel, .clarify-panel, .ready-panel { padding: 21px; }
+  .insight-panel, .clarify-panel, .ready-panel { padding: 21px; }
+  .summary-topline { padding: 12px 16px 12px 20px; }
+  .summary-lead { padding: 24px 21px; }
+  .summary-points { padding: 12px 17px; }
   .summary-topline, .clarify-panel > header, .clarify-panel footer { align-items: flex-start; flex-direction: column; }
   .question-list label { grid-template-columns: 1fr; }
   .clarify-panel footer { gap: 13px; }

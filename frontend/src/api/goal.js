@@ -16,6 +16,6 @@ export async function analyzeGoal(goalId) {
   return postJson(`/api/goals/${encodeURIComponent(goalId)}/analyze`)
 }
 
-export async function clarifyGoal(goalText, clarificationHistory) {
-  return postJson('/api/goals/clarify', { goalText, clarificationHistory })
+export async function clarifyGoal(goalId, answers) {
+  return postJson(`/api/goals/${encodeURIComponent(goalId)}/clarifications`, { answers })
 }

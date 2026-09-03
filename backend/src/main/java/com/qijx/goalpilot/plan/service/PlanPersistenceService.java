@@ -10,10 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.qijx.goalpilot.goal.domain.GoalStatus;
 import com.qijx.goalpilot.goal.entity.Goal;
 import com.qijx.goalpilot.goal.entity.GoalAnalysis;
+import com.qijx.goalpilot.goal.mapper.GoalMapper;
 import com.qijx.goalpilot.plan.domain.PlanStatus;
 import com.qijx.goalpilot.plan.domain.PlanTaskStatus;
+import com.qijx.goalpilot.plan.dto.PlanApprovalResponse;
 import com.qijx.goalpilot.plan.dto.PlanGenerationResponse;
 import com.qijx.goalpilot.plan.dto.PlanSnapshotResponse;
 import com.qijx.goalpilot.plan.dto.PlanStage;
@@ -32,15 +35,18 @@ public class PlanPersistenceService {
     private final PlanMapper planMapper;
     private final PlanStageMapper planStageMapper;
     private final PlanTaskMapper planTaskMapper;
+    private final GoalMapper goalMapper;
 
     public PlanPersistenceService(
         PlanMapper planMapper,
         PlanStageMapper planStageMapper,
-        PlanTaskMapper planTaskMapper
+        PlanTaskMapper planTaskMapper,
+        GoalMapper goalMapper
     ){
         this.planMapper = planMapper;
         this.planStageMapper = planStageMapper;
         this.planTaskMapper = planTaskMapper;
+        this.goalMapper = goalMapper;
     }
 
     public boolean hasDraft(Long goalId){
@@ -128,6 +134,45 @@ public class PlanPersistenceService {
             stageResponses,
             plan.getCreatedAt()
         );
+    }
+
+    @Transactional
+    public PlanApprovalResponse approveDraft(Plan plan, Goal goal){
+        Integer versionNumber = calculateNextVersionNumber(goal.getId());
+
+        plan.setStatus(PlanStatus.ACTIVE);
+        plan.setVersionNumber(versionNumber);
+        goal.setStatus(GoalStatus.ACTIVE);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        plan.setUpdatedAt(now);
+        goal.setUpdatedAt(now);
+
+        int planUpdatedRow = planMapper.updateById(plan);
+        int goalUpdatedRow = goalMapper.updateById(goal);
+
+        if(planUpdatedRow != 1 || goalUpdatedRow != 1){
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "更新状态失败");
+        }
+
+        return PlanApprovalResponse.from(plan, goal);
+    }
+
+    private Integer calculateNextVersionNumber(Long goalId){
+        Plan latestPlan = planMapper.selectOne(
+            new LambdaQueryWrapper<Plan>()
+                .eq(Plan::getGoalId, goalId)
+                .isNotNull(Plan::getVersionNumber)
+                .orderByDesc(Plan::getVersionNumber)
+                .last("LIMIT 1")
+        );
+
+        if(latestPlan == null){
+            return 1;
+        }
+
+        return latestPlan.getVersionNumber() + 1;
     }
 
     private List<PlanTaskResponse> saveTasks(

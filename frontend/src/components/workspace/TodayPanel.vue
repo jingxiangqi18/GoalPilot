@@ -8,6 +8,7 @@ const props = defineProps({
   goalTotal: { type: Number, default: 0 },
   currentGoalId: { type: Number, default: null },
   readiness: { type: String, default: '' },
+  planStatus: { type: String, default: '' },
 })
 
 const dayNumber = computed(() => String(props.date.getDate()).padStart(2, '0'))
@@ -16,6 +17,8 @@ const weekdayLabel = computed(() => new Intl.DateTimeFormat('zh-CN', { weekday: 
 const yearLabel = computed(() => props.date.getFullYear())
 const progress = computed(() => Math.round((props.activeStep / 3) * 100))
 const phase = computed(() => {
+  if (props.planStatus === 'ACTIVE') return '正式计划已启用，开始行动'
+  if (props.planStatus === 'DRAFT') return '计划草稿待确认'
   if (props.readiness === 'READY') return '信息已充足，可以开始规划'
   if (props.activeStep === 2) return '正在补全目标的关键边界'
   if (props.activeStep === 3) return '路线已经清晰，准备行动'
@@ -36,7 +39,7 @@ const phase = computed(() => {
       <p>把今天的注意力，<br />留给真正重要的方向。</p>
     </div>
 
-    <section class="session-card">
+    <section class="session-card" :class="{ 'is-active': planStatus === 'ACTIVE' }">
       <header><span>CURRENT SESSION</span><b>{{ activeStep }} / 3</b></header>
       <div class="session-progress">
         <div class="progress-ring" :style="{ '--progress': `${progress * 3.6}deg` }">
@@ -64,6 +67,12 @@ const phase = computed(() => {
 </template>
 
 <style scoped>
+@property --progress {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
 .today-panel { position: sticky; top: 86px; display: grid; gap: 13px; align-self: start; }
 .today-artwork { position: relative; height: 310px; padding: 20px; overflow: hidden; color: #fff; background: #252936; border: 1px solid rgba(255,255,255,.12); border-radius: 24px; box-shadow: 0 22px 50px rgba(35,37,49,.16); }
 .today-artwork > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 42% center; filter: saturate(.82) contrast(.94); transform: scale(1.02); transition: transform 1.2s cubic-bezier(.2,.75,.25,1); }
@@ -80,10 +89,12 @@ const phase = computed(() => {
 .date-lockup b { font-size: 18px; }.date-lockup small { margin-top: 5px; color: rgba(255,255,255,.7); font-size: 10px; }
 .today-artwork > p { position: absolute; z-index: 1; right: 20px; bottom: 20px; left: 20px; margin: 0; font-size: 19px; font-weight: 600; line-height: 1.35; letter-spacing: -.02em; }
 .session-card { padding: 18px; background: rgba(255,255,255,.92); border: 1px solid var(--line-strong); border-radius: 18px; box-shadow: var(--shadow-sm); backdrop-filter: blur(12px); }
+.session-card.is-active { border-color: var(--moss-300); box-shadow: 0 10px 28px rgba(77,99,120,.12); animation: session-ready .6s cubic-bezier(.2,.75,.25,1) both; }
+@keyframes session-ready { from { opacity: .75; transform: translateY(6px); } }
 .session-card > header { display: flex; align-items: center; justify-content: space-between; color: var(--ink-400); font-size: 8px; font-weight: 700; letter-spacing: .14em; }
 .session-card > header b { color: var(--coral-700); font-size: 9px; }
 .session-progress { margin-top: 17px; display: grid; grid-template-columns: 63px 1fr; align-items: center; gap: 13px; }
-.progress-ring { width: 61px; height: 61px; padding: 6px; display: grid; place-items: center; background: conic-gradient(var(--coral-500) var(--progress), var(--coral-100) 0); border-radius: 50%; }
+.progress-ring { width: 61px; height: 61px; padding: 6px; display: grid; place-items: center; background: conic-gradient(var(--coral-500) var(--progress), var(--coral-100) 0); border-radius: 50%; transition: --progress .7s cubic-bezier(.2,.75,.25,1); }
 .progress-ring > span { width: 49px; height: 49px; display: grid; grid-auto-flow: column; place-content: center; align-items: baseline; color: var(--ink); background: #fff; border-radius: 50%; }
 .progress-ring strong { font-size: 17px; }.progress-ring small { color: var(--ink-400); font-size: 8px; }
 .session-progress > div:last-child > strong { display: block; color: var(--ink); font-size: 11px; line-height: 1.5; }

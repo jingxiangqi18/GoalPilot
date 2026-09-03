@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { analyzeGoal, clarifyGoal, createGoal, getGoalDetails, getGoals } from '../api/goal'
-import { generatePlan } from '../api/plan'
+import { approvePlan, generatePlan } from '../api/plan'
 import WorkspaceSidebar from './workspace/WorkspaceSidebar.vue'
 import GoalComposer from './workspace/GoalComposer.vue'
 import AnalysisResult from './workspace/AnalysisResult.vue'
@@ -9,13 +9,13 @@ import PlanRoadmap from './workspace/PlanRoadmap.vue'
 import GoalLibrary from './workspace/GoalLibrary.vue'
 import GoalDetailDrawer from './workspace/GoalDetailDrawer.vue'
 import TodayPanel from './workspace/TodayPanel.vue'
+import PlanLaunchPanel from './workspace/PlanLaunchPanel.vue'
 
 const props = defineProps({ user: { type: Object, required: true } })
 defineEmits(['logout'])
 
 const activeView = ref('create')
 const goalText = ref('')
-const submittedGoal = ref('')
 const activeGoalId = ref(null)
 const activeSavedText = ref('')
 const result = ref(null)
@@ -23,8 +23,9 @@ const plan = ref(null)
 const errorMessage = ref('')
 const errorTitle = ref('请求没有完成')
 const activeRequest = ref(null)
-const clarificationHistory = ref([])
+const clarificationAnswerCount = ref(0)
 const clarificationAnswers = ref([])
+const directPlanGoal = ref(null)
 
 const goalItems = ref([])
 const goalPage = ref(1)
@@ -42,7 +43,7 @@ const todayDay = String(today.getDate()).padStart(2, '0')
 const todayMonth = new Intl.DateTimeFormat('zh-CN', { month: 'long' }).format(today)
 const todayWeekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(today)
 const activeStep = computed(() => {
-  if (plan.value || result.value?.readiness === 'READY') return 3
+  if (plan.value || directPlanGoal.value || result.value?.readiness === 'READY') return 3
   if (result.value) return 2
   return 1
 })
@@ -76,15 +77,27 @@ function normalizeResult(data) {
 
 function normalizePlan(data) {
   return {
+    planId: data?.planId ?? null,
+    goalId: data?.goalId ?? activeGoalId.value,
+    sourceAnalysisId: data?.sourceAnalysisId ?? null,
+    versionNumber: data?.versionNumber ?? null,
+    status: data?.status || 'DRAFT',
+    createdAt: data?.createdAt ?? null,
+    updatedAt: data?.updatedAt ?? null,
     planTitle: data?.planTitle || '未命名计划',
     planSummary: data?.planSummary || '未返回计划概述',
     stages: Array.isArray(data?.stages)
       ? data.stages.map((stage) => ({
+          stageId: stage?.stageId ?? null,
+          sortOrder: stage?.sortOrder ?? null,
           title: stage?.title || '未命名阶段',
           objective: stage?.objective || '未返回阶段目标',
           timeRange: stage?.timeRange || '未指定时间范围',
           tasks: Array.isArray(stage?.tasks)
             ? stage.tasks.map((task) => ({
+                taskId: task?.taskId ?? null,
+                sortOrder: task?.sortOrder ?? null,
+                status: task?.status || 'TODO',
                 title: task?.title || '未命名任务',
                 description: task?.description || '未返回任务说明',
                 completionCriteria: task?.completionCriteria || '未返回完成标准',
@@ -126,6 +139,7 @@ async function submitGoal() {
 
   activeRequest.value = 'analysis'
   errorMessage.value = ''
+  directPlanGoal.value = null
 
   try {
     if (!activeGoalId.value || normalized !== activeSavedText.value) {
@@ -136,9 +150,8 @@ async function submitGoal() {
     }
 
     result.value = normalizeResult(await analyzeGoal(activeGoalId.value))
-    submittedGoal.value = normalized
     plan.value = null
-    clarificationHistory.value = []
+    clarificationAnswerCount.value = 0
     clarificationAnswers.value = result.value.clarificationQuestions.map((item) => item.answer || '')
     await loadGoalPage(1)
     scrollToSection('#analysis')
@@ -150,26 +163,32 @@ async function submitGoal() {
 }
 
 async function submitClarification() {
-  if (activeRequest.value || !result.value) return
-  const newAnswers = result.value.clarificationQuestions
-    .map((item, index) => ({ question: item.question, answer: clarificationAnswers.value[index]?.trim() }))
-    .filter((item) => item.answer)
-  if (!newAnswers.length) return
+  if (activeRequest.value || !result.value || !activeGoalId.value) return
+  const answers = result.value.clarificationQuestions.map((item, index) => ({
+    questionId: item.questionId,
+    answer: clarificationAnswers.value[index]?.trim() || '',
+  }))
 
-  const updatedHistory = [...clarificationHistory.value, ...newAnswers]
-  if (updatedHistory.length > 10) {
-    errorTitle.value = '无法继续补充'
-    errorMessage.value = '澄清记录最多支持 10 项，请重新提交一个信息更完整的目标。'
+  if (!answers.length || answers.some((item) => !item.answer)) {
+    errorTitle.value = '还没有回答完整'
+    errorMessage.value = '后端要求一次提交当前全部澄清问题，请补全所有回答后再继续。'
+    return
+  }
+
+  if (answers.some((item) => !item.questionId)) {
+    errorTitle.value = '问题记录无效'
+    errorMessage.value = '当前问题缺少后端记录 ID，请重新分析目标后再试。'
     return
   }
 
   activeRequest.value = 'clarification'
   errorMessage.value = ''
   try {
-    result.value = normalizeResult(await clarifyGoal(submittedGoal.value, updatedHistory))
-    clarificationHistory.value = updatedHistory
+    result.value = normalizeResult(await clarifyGoal(activeGoalId.value, answers))
+    clarificationAnswerCount.value += answers.length
     clarificationAnswers.value = result.value.clarificationQuestions.map((item) => item.answer || '')
     plan.value = null
+    await loadGoalPage(1)
     scrollToSection('#analysis')
   } catch (error) {
     setRequestError('补充信息没有提交', error)
@@ -178,19 +197,11 @@ async function submitClarification() {
   }
 }
 
-async function createPlan() {
-  if (activeRequest.value || result.value?.readiness !== 'READY') return
+async function requestPlan(goalId) {
   activeRequest.value = 'plan'
   errorMessage.value = ''
   try {
-    const planAnalysis = {
-      goalSummary: result.value.goalSummary,
-      knownInformation: result.value.knownInformation,
-      missingInformation: result.value.missingInformation,
-      readiness: result.value.readiness,
-      clarificationQuestions: result.value.clarificationQuestions.map((item) => item.question),
-    }
-    plan.value = normalizePlan(await generatePlan(submittedGoal.value, planAnalysis))
+    plan.value = normalizePlan(await generatePlan(goalId))
     scrollToSection('#plan')
   } catch (error) {
     setRequestError('计划生成没有完成', error)
@@ -199,16 +210,66 @@ async function createPlan() {
   }
 }
 
+async function createPlan() {
+  if (activeRequest.value || result.value?.readiness !== 'READY' || !activeGoalId.value || plan.value) return
+  await requestPlan(activeGoalId.value)
+}
+
+async function approveCurrentPlan() {
+  if (activeRequest.value || !plan.value?.planId || plan.value.status !== 'DRAFT') return
+  activeRequest.value = 'approval'
+  errorMessage.value = ''
+  try {
+    const approved = await approvePlan(plan.value.planId)
+    plan.value = {
+      ...plan.value,
+      versionNumber: approved?.versionNumber ?? plan.value.versionNumber,
+      status: approved?.planStatus || 'ACTIVE',
+      updatedAt: approved?.updatedAt ?? new Date().toISOString(),
+    }
+    if (directPlanGoal.value) {
+      directPlanGoal.value = {
+        ...directPlanGoal.value,
+        status: approved?.goalStatus || 'ACTIVE',
+      }
+    }
+    await loadGoalPage(1)
+    scrollToSection('#plan')
+  } catch (error) {
+    setRequestError('计划确认没有完成', error)
+  } finally {
+    activeRequest.value = null
+  }
+}
+
+async function generateGoalPlan(goal) {
+  if (activeRequest.value || !goal?.id) return
+  goalText.value = goal.goalText || ''
+  activeGoalId.value = goal.id
+  activeSavedText.value = goal.goalText || ''
+  result.value = null
+  plan.value = null
+  errorMessage.value = ''
+  clarificationAnswerCount.value = 0
+  clarificationAnswers.value = []
+  directPlanGoal.value = goal
+  detailOpen.value = false
+  activeView.value = 'create'
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+  await nextTick()
+  await requestPlan(goal.id)
+}
+
 function clearJourney() {
   goalText.value = ''
-  submittedGoal.value = ''
   activeGoalId.value = null
   activeSavedText.value = ''
   result.value = null
   plan.value = null
   errorMessage.value = ''
-  clarificationHistory.value = []
+  clarificationAnswerCount.value = 0
   clarificationAnswers.value = []
+  directPlanGoal.value = null
 }
 
 function startNewGoal() {
@@ -245,14 +306,14 @@ async function openGoalDetails(goalId) {
 
 function continueGoal(goal) {
   goalText.value = goal.goalText || ''
-  submittedGoal.value = ''
   activeGoalId.value = goal.id
   activeSavedText.value = goal.goalText || ''
   result.value = null
   plan.value = null
   errorMessage.value = ''
-  clarificationHistory.value = []
+  clarificationAnswerCount.value = 0
   clarificationAnswers.value = []
+  directPlanGoal.value = null
   detailOpen.value = false
   activeView.value = 'create'
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -300,6 +361,7 @@ onMounted(() => loadGoalPage(1))
           <div v-if="activeView === 'create'" key="create" class="create-dashboard">
             <div class="view-stack">
               <GoalComposer
+                v-if="!directPlanGoal"
                 v-model="goalText"
                 :loading="activeRequest === 'analysis'"
                 :error-title="!result ? errorTitle : ''"
@@ -311,14 +373,25 @@ onMounted(() => loadGoalPage(1))
                 @dismiss-error="errorMessage = ''"
               />
 
+              <PlanLaunchPanel
+                v-else-if="!plan"
+                :goal="directPlanGoal"
+                :loading="activeRequest === 'plan'"
+                :error-title="errorTitle"
+                :error-message="errorMessage"
+                @retry="requestPlan(activeGoalId)"
+                @cancel="startNewGoal"
+                @dismiss-error="errorMessage = ''"
+              />
+
               <AnalysisResult
                 v-if="result"
                 v-model:answers="clarificationAnswers"
                 :result="result"
                 :active-request="activeRequest"
-                :history-count="clarificationHistory.length"
+                :history-count="clarificationAnswerCount"
                 :error-title="errorTitle"
-                :error-message="errorMessage"
+                :error-message="plan ? '' : errorMessage"
                 :plan-exists="!!plan"
                 @reset="resetAll"
                 @clarify="submitClarification"
@@ -326,7 +399,16 @@ onMounted(() => loadGoalPage(1))
                 @dismiss-error="errorMessage = ''"
               />
 
-              <PlanRoadmap v-if="plan" :plan="plan" @reset="resetAll" />
+              <PlanRoadmap
+                v-if="plan"
+                :plan="plan"
+                :active-request="activeRequest"
+                :error-title="errorTitle"
+                :error-message="errorMessage"
+                @approve="approveCurrentPlan"
+                @reset="resetAll"
+                @dismiss-error="errorMessage = ''"
+              />
             </div>
 
             <TodayPanel
@@ -335,6 +417,7 @@ onMounted(() => loadGoalPage(1))
               :goal-total="goalTotal"
               :current-goal-id="activeGoalId"
               :readiness="result?.readiness"
+              :plan-status="plan?.status"
             />
           </div>
 
@@ -349,6 +432,7 @@ onMounted(() => loadGoalPage(1))
             :total="goalTotal"
             @select="openGoalDetails"
             @continue="continueGoal"
+            @generate-plan="generateGoalPlan"
             @new-goal="startNewGoal"
             @refresh="loadGoalPage(goalPage)"
             @page-change="loadGoalPage"
@@ -366,6 +450,7 @@ onMounted(() => loadGoalPage(1))
         :loading="detailLoading"
         @close="detailOpen = false"
         @continue="continueGoal"
+        @generate-plan="generateGoalPlan"
       />
     </Teleport>
   </div>

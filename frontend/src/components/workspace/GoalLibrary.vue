@@ -10,7 +10,7 @@ const props = defineProps({
   total: { type: Number, default: 0 },
 })
 
-const emit = defineEmits(['select', 'continue', 'new-goal', 'refresh', 'page-change'])
+const emit = defineEmits(['select', 'continue', 'generate-plan', 'new-goal', 'refresh', 'page-change'])
 
 const activeFilter = ref('ALL')
 const filters = [
@@ -127,6 +127,7 @@ function formatDate(value) {
           <footer>
             <button type="button" @click="emit('select', goal.id)">查看详情</button>
             <button v-if="goal.status === 'DRAFT'" type="button" class="continue-button" @click="emit('continue', goal)">继续分析 <span>↗</span></button>
+            <button v-else-if="goal.status === 'READY_TO_PLAN'" type="button" class="continue-button" @click="emit('generate-plan', goal)">生成计划 <span>↗</span></button>
             <button v-else type="button" class="state-button" @click="emit('select', goal.id)">查看进度 <span>→</span></button>
           </footer>
         </article>

@@ -11,9 +11,13 @@ import com.qijx.goalpilot.goal.entity.Goal;
 import com.qijx.goalpilot.goal.entity.GoalAnalysis;
 import com.qijx.goalpilot.goal.mapper.GoalMapper;
 import com.qijx.goalpilot.goal.service.GoalAnalysisPersistenceService;
+import com.qijx.goalpilot.plan.domain.PlanStatus;
+import com.qijx.goalpilot.plan.dto.PlanApprovalResponse;
 import com.qijx.goalpilot.plan.dto.PlanGenerationContext;
 import com.qijx.goalpilot.plan.dto.PlanGenerationResponse;
 import com.qijx.goalpilot.plan.dto.PlanSnapshotResponse;
+import com.qijx.goalpilot.plan.entity.Plan;
+import com.qijx.goalpilot.plan.mapper.PlanMapper;
 
 @Service
 public class PlanService {
@@ -21,17 +25,20 @@ public class PlanService {
     private final GoalAnalysisPersistenceService goalAnalysisPersistenceService;
     private final PlanGenerationService planGenerationService;
     private final PlanPersistenceService planPersistenceService;
+    private final PlanMapper planMapper;
 
     public PlanService(
         GoalMapper goalMapper,
         GoalAnalysisPersistenceService goalAnalysisPersistenceService,
         PlanGenerationService planGenerationService,
-        PlanPersistenceService planPersistenceService
+        PlanPersistenceService planPersistenceService,
+        PlanMapper planMapper
     ){
         this.goalMapper = goalMapper;
         this.goalAnalysisPersistenceService = goalAnalysisPersistenceService;
         this.planGenerationService = planGenerationService;
         this.planPersistenceService = planPersistenceService;
+        this.planMapper = planMapper;
     }
 
     public PlanSnapshotResponse generateDraft(Long userId, Long goalId){
@@ -71,6 +78,34 @@ public class PlanService {
             latestAnalysis,
             generatedPlan
         );
+    }
+
+    public PlanApprovalResponse approvePlan(Long userId, Long planId){
+        Plan plan = planMapper.selectById(planId);
+
+        if(plan == null){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "计划不存在");
+        }
+
+        Goal goal = goalMapper.selectOne(
+            new LambdaQueryWrapper<Goal>()
+                .eq(Goal::getId, plan.getGoalId())
+                .eq(Goal::getUserId, userId)
+        );
+
+        if(goal == null){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "目标不存在");
+        }
+
+        if(plan.getStatus() != PlanStatus.DRAFT){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "计划状态必须为草稿");
+        }
+
+        if(goal.getStatus() != GoalStatus.READY_TO_PLAN){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "目标状态必须为可计划");
+        }
+
+        return planPersistenceService.approveDraft(plan, goal);
     }
 
     private Goal findOwnedGoal(Long userId, Long goalId){

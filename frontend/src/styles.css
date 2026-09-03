@@ -7,6 +7,7 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --display: 'DM Sans', 'Noto Sans SC', system-ui, sans-serif;
+  --text-cn: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --serif: var(--display);
   --editorial: var(--display);
   --ink: #1d1f27;

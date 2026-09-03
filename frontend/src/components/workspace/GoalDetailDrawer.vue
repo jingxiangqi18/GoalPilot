@@ -6,7 +6,7 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'continue'])
+const emit = defineEmits(['close', 'continue', 'generate-plan'])
 
 const statusLabels = {
   DRAFT: '草稿', NEEDS_CLARIFICATION: '待补充', READY_TO_PLAN: '待规划',
@@ -15,6 +15,7 @@ const statusLabels = {
 const priorityLabels = { LOW: '低', MEDIUM: '中', HIGH: '高' }
 const statusLabel = computed(() => statusLabels[props.goal?.status] || props.goal?.status || '未知')
 const canContinue = computed(() => props.goal?.status === 'DRAFT')
+const canGeneratePlan = computed(() => props.goal?.status === 'READY_TO_PLAN')
 const lifecycleStep = computed(() => {
   if (props.goal?.status === 'DRAFT') return 1
   if (props.goal?.status === 'NEEDS_CLARIFICATION') return 2
@@ -92,6 +93,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
         <footer>
           <button type="button" class="ghost-button" @click="emit('close')">返回目标库</button>
           <button v-if="canContinue" type="button" class="continue-button" @click="emit('continue', goal)">继续分析目标 <span>↗</span></button>
+          <button v-else-if="canGeneratePlan" type="button" class="continue-button" @click="emit('generate-plan', goal)">生成计划草稿 <span>↗</span></button>
         </footer>
       </template>
     </aside>

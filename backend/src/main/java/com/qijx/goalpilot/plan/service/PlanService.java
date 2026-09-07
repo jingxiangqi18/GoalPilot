@@ -1,5 +1,7 @@
 package com.qijx.goalpilot.plan.service;
 
+import java.time.LocalDateTime;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -106,6 +108,36 @@ public class PlanService {
         }
 
         return planPersistenceService.approveDraft(plan, goal);
+    }
+
+    public void rejectPlan(Long userId, Long planId){
+        Plan plan = planMapper.selectById(planId);
+
+        if(plan == null){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该计划不存在");
+        }
+
+        Goal goal = findOwnedGoal(userId, plan.getGoalId());
+
+        if(plan.getStatus() != PlanStatus.DRAFT || goal.getStatus() != GoalStatus.READY_TO_PLAN){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "计划或目标状态有误");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        plan.setStatus(PlanStatus.REJECTED);
+        plan.setUpdatedAt(now);
+
+        int updatedRows = planMapper.update(
+            plan,
+            new LambdaQueryWrapper<Plan>()
+            .eq(Plan::getId, plan.getId())
+            .eq(Plan::getStatus, PlanStatus.DRAFT)
+        );
+
+        if(updatedRows != 1){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "计划状态已变化");
+        }
     }
 
     private Goal findOwnedGoal(Long userId, Long goalId){

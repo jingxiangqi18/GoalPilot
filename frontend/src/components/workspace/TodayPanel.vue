@@ -9,106 +9,107 @@ const props = defineProps({
   currentGoalId: { type: Number, default: null },
   readiness: { type: String, default: '' },
   planStatus: { type: String, default: '' },
+  items: { type: Array, default: () => [] },
+  loading: { type: Boolean, default: false },
+  errorMessage: { type: String, default: '' },
 })
-
+defineEmits(['open-goal', 'open-library'])
 const dayNumber = computed(() => String(props.date.getDate()).padStart(2, '0'))
-const monthLabel = computed(() => new Intl.DateTimeFormat('zh-CN', { month: 'long' }).format(props.date))
+const monthLabel = computed(() => new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long' }).format(props.date))
 const weekdayLabel = computed(() => new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(props.date))
-const yearLabel = computed(() => props.date.getFullYear())
-const progress = computed(() => Math.round((props.activeStep / 3) * 100))
-const phase = computed(() => {
-  if (props.planStatus === 'ACTIVE') return '正式计划已启用，开始行动'
-  if (props.planStatus === 'DRAFT') return '计划草稿待确认'
-  if (props.readiness === 'READY') return '信息已充足，可以开始规划'
-  if (props.activeStep === 2) return '正在补全目标的关键边界'
-  if (props.activeStep === 3) return '路线已经清晰，准备行动'
-  return '从一句真实的目标描述开始'
+const week = computed(() => {
+  const monday = new Date(props.date)
+  monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7)
+  return ['一', '二', '三', '四', '五', '六', '日'].map((label, index) => {
+    const date = new Date(monday)
+    date.setDate(monday.getDate() + index)
+    return { label, day: date.getDate(), current: date.toDateString() === props.date.toDateString() }
+  })
 })
+const phase = computed(() => {
+  if (props.planStatus === 'ACTIVE') return '正式计划已启用，可以开始行动'
+  if (props.planStatus === 'DRAFT') return '路线已生成，确认后就能出发'
+  if (props.planStatus === 'REJECTED') return '这版草稿未采用，目标仍在，可以重新规划'
+  if (props.readiness === 'READY') return '信息已充足，可以开始规划'
+  if (props.readiness) return '补全关键信息，让路线更准确'
+  return '写下你的方向，让想法有处安放'
+})
+const statusLabels = { DRAFT: '待分析', NEEDS_CLARIFICATION: '待补充', READY_TO_PLAN: '待规划', ACTIVE: '进行中', COMPLETED: '已完成', ARCHIVED: '已归档' }
 </script>
 
 <template>
-  <aside class="today-panel">
-    <div class="today-artwork">
-      <img :src="gradientArtwork" alt="柔和的淡紫、杏色与雾蓝渐变丝带" />
-      <div class="artwork-shade"></div>
-      <header><span><i></i>TODAY</span><b>{{ yearLabel }}</b></header>
-      <div class="date-lockup">
-        <strong>{{ dayNumber }}</strong>
-        <span><b>{{ weekdayLabel }}</b><small>{{ monthLabel }}</small></span>
+  <aside class="today-panel" aria-label="今日与目标速览">
+    <section class="date-card" aria-label="本周日历">
+      <div class="today-artwork">
+        <img :src="gradientArtwork" alt="" decoding="async" />
+        <header><span><i></i>TODAY'S FOCUS</span><b>✦</b></header>
+        <div class="date-lockup"><strong>{{ dayNumber }}</strong><span><b>{{ weekdayLabel }}</b><small>{{ monthLabel }}</small></span></div>
+        <p>给重要的事，一点专注的时间。</p>
       </div>
-      <p>把今天的注意力，<br />留给真正重要的方向。</p>
-    </div>
-
-    <section class="session-card" :class="{ 'is-active': planStatus === 'ACTIVE' }">
-      <header><span>CURRENT SESSION</span><b>{{ activeStep }} / 3</b></header>
-      <div class="session-progress">
-        <div class="progress-ring" :style="{ '--progress': `${progress * 3.6}deg` }">
-          <span><strong>{{ progress }}</strong><small>%</small></span>
-        </div>
-        <div><strong>{{ phase }}</strong><p>{{ currentGoalId ? `目标记录 #${currentGoalId}` : '尚未创建目标记录' }}</p></div>
-      </div>
-      <ol>
-        <li :class="{ active: activeStep >= 1 }"><i></i><span>理解</span></li>
-        <li :class="{ active: activeStep >= 2 }"><i></i><span>澄清</span></li>
-        <li :class="{ active: activeStep >= 3 }"><i></i><span>规划</span></li>
+      <ol class="week-strip">
+        <li v-for="day in week" :key="day.label" :class="{ current: day.current }" :aria-current="day.current ? 'date' : undefined">
+          <span>{{ day.label }}</span><strong>{{ day.day }}</strong><i></i>
+        </li>
       </ol>
     </section>
-
-    <section class="today-metrics">
-      <article><span>目标档案</span><strong>{{ goalTotal }}</strong><small>GOALS</small></article>
-      <article><span>今日节奏</span><strong>01</strong><small>FOCUS</small></article>
+    <section class="session-card" :class="{ 'is-active': planStatus === 'ACTIVE' }">
+      <header><span>正在规划</span><small>{{ currentGoalId ? '目标已保存' : '新会话' }}</small></header>
+      <p>{{ phase }}</p>
+      <ol class="session-steps" aria-label="当前浏览阶段">
+        <li v-for="(label, index) in ['定义', '澄清', '规划']" :key="label" :class="{ current: activeStep === index + 1 }"><i></i>{{ label }}</li>
+      </ol>
     </section>
-
-    <blockquote>
-      <span>DAILY NOTE</span>
-      <p>不必一次完成所有事，先让下一步足够清楚。</p>
-    </blockquote>
+    <section class="recent-card" :aria-busy="loading">
+      <header><h2>目标速览 <span>{{ goalTotal }}</span></h2><button type="button" @click="$emit('open-library')">全部 ↗</button></header>
+      <div v-if="loading" class="recent-placeholder" role="status">正在载入目标…</div>
+      <div v-else-if="errorMessage" class="recent-placeholder">暂时无法加载目标<button type="button" @click="$emit('open-library')">前往目标库重试 →</button></div>
+      <ul v-else-if="items.length">
+        <li v-for="(goal, index) in items.slice(0, 3)" :key="goal.id">
+          <button type="button" @click="$emit('open-goal', goal.id)">
+            <span class="goal-symbol" :class="'symbol-' + index">{{ ['↗', '✧', '◷'][index] }}</span>
+            <span class="recent-copy"><strong>{{ goal.goalText }}</strong><small>{{ statusLabels[goal.status] || goal.status || '已保存' }}</small></span>
+            <span class="recent-arrow">→</span>
+          </button>
+        </li>
+      </ul>
+      <div v-else class="recent-placeholder"><span class="empty-spark" aria-hidden="true">✧</span><strong>给第一个目标留个位置</strong><p>提交左侧的想法，它就会出现在这里。</p></div>
+    </section>
+    <p class="daily-note"><span>✦</span> 方向比速度重要，持续比完美可靠。</p>
   </aside>
 </template>
 
 <style scoped>
-@property --progress {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
-
-.today-panel { position: sticky; top: 86px; display: grid; gap: 13px; align-self: start; }
-.today-artwork { position: relative; height: 310px; padding: 20px; overflow: hidden; color: #fff; background: #252936; border: 1px solid rgba(255,255,255,.12); border-radius: 24px; box-shadow: 0 22px 50px rgba(35,37,49,.16); }
-.today-artwork > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 42% center; filter: saturate(.82) contrast(.94); transform: scale(1.02); transition: transform 1.2s cubic-bezier(.2,.75,.25,1); }
-.today-artwork:hover > img { transform: scale(1.065); }
-.artwork-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(22,24,33,.24), rgba(25,27,37,.06) 46%, rgba(24,26,35,.76)); }
-.today-artwork header { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; color: rgba(255,255,255,.74); font-size: 8px; font-weight: 700; letter-spacing: .16em; }
-.today-artwork header span { display: flex; align-items: center; gap: 7px; }
-.today-artwork header i { width: 6px; height: 6px; background: #f0b9a7; border-radius: 50%; box-shadow: 0 0 0 4px rgba(240,185,167,.16); }
-.today-artwork header b { font-size: 9px; }
-.date-lockup { position: relative; z-index: 1; margin-top: 27px; display: flex; align-items: center; gap: 15px; }
-.date-lockup > strong { font-size: 82px; font-weight: 650; line-height: .85; letter-spacing: -.08em; text-shadow: 0 8px 28px rgba(32,28,39,.18); }
-.date-lockup > span { padding-left: 15px; border-left: 1px solid rgba(255,255,255,.3); }
+.today-panel { display: grid; gap: 14px; align-self: start; min-width: 0; }
+.date-card, .session-card, .recent-card { overflow: hidden; background: rgba(255,255,255,.92); border: 0; border-radius: 21px; box-shadow: var(--surface-shadow); }
+.today-artwork { position: relative; padding: 19px; overflow: hidden; color: #fff; background: #252936; }
+.today-artwork > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 42% center; filter: brightness(.68) saturate(.7); transition: transform 1s var(--ease-out); }
+.date-card:hover img { transform: scale(1.04); }
+.today-artwork header, .date-lockup, .today-artwork p { position: relative; }
+.today-artwork header { display: flex; align-items: center; justify-content: space-between; color: #e0dae5; font-size: 9px; font-weight: 600; letter-spacing: .13em; }
+.today-artwork header span { display: flex; align-items: center; gap: 8px; }
+.today-artwork header i { width: 5px; height: 5px; background: #f0b9a7; border-radius: 50%; box-shadow: 0 0 0 4px #f0b9a724; }
+.date-lockup { margin-top: 24px; display: flex; align-items: center; gap: 18px; }
+.date-lockup > strong { font-size: 60px; font-weight: 600; line-height: 1; letter-spacing: -.06em; }
+.date-lockup > span { padding-left: 16px; border-left: 1px solid #ffffff45; }
 .date-lockup b, .date-lockup small { display: block; }
-.date-lockup b { font-size: 18px; }.date-lockup small { margin-top: 5px; color: rgba(255,255,255,.7); font-size: 10px; }
-.today-artwork > p { position: absolute; z-index: 1; right: 20px; bottom: 20px; left: 20px; margin: 0; font-size: 19px; font-weight: 600; line-height: 1.35; letter-spacing: -.02em; }
-.session-card { padding: 18px; background: rgba(255,255,255,.92); border: 1px solid var(--line-strong); border-radius: 18px; box-shadow: var(--shadow-sm); backdrop-filter: blur(12px); }
-.session-card.is-active { border-color: var(--moss-300); box-shadow: 0 10px 28px rgba(77,99,120,.12); animation: session-ready .6s cubic-bezier(.2,.75,.25,1) both; }
-@keyframes session-ready { from { opacity: .75; transform: translateY(6px); } }
-.session-card > header { display: flex; align-items: center; justify-content: space-between; color: var(--ink-400); font-size: 8px; font-weight: 700; letter-spacing: .14em; }
-.session-card > header b { color: var(--coral-700); font-size: 9px; }
-.session-progress { margin-top: 17px; display: grid; grid-template-columns: 63px 1fr; align-items: center; gap: 13px; }
-.progress-ring { width: 61px; height: 61px; padding: 6px; display: grid; place-items: center; background: conic-gradient(var(--coral-500) var(--progress), var(--coral-100) 0); border-radius: 50%; transition: --progress .7s cubic-bezier(.2,.75,.25,1); }
-.progress-ring > span { width: 49px; height: 49px; display: grid; grid-auto-flow: column; place-content: center; align-items: baseline; color: var(--ink); background: #fff; border-radius: 50%; }
-.progress-ring strong { font-size: 17px; }.progress-ring small { color: var(--ink-400); font-size: 8px; }
-.session-progress > div:last-child > strong { display: block; color: var(--ink); font-size: 11px; line-height: 1.5; }
-.session-progress p { margin: 5px 0 0; color: var(--ink-400); font-size: 8px; }
-.session-card ol { position: relative; margin: 17px 0 0; padding: 14px 0 0; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); list-style: none; }
-.session-card li { display: flex; align-items: center; justify-content: center; gap: 5px; color: var(--ink-400); font-size: 8px; }
-.session-card li i { width: 6px; height: 6px; background: var(--line-strong); border-radius: 50%; }
-.session-card li.active { color: var(--ink-700); font-weight: 700; }.session-card li.active i { background: var(--coral-500); box-shadow: 0 0 0 3px var(--coral-100); }
-.today-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.today-metrics article { min-height: 96px; padding: 15px; background: linear-gradient(145deg, rgba(255,255,255,.96), rgba(244,241,248,.9)); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm); }
-.today-metrics span, .today-metrics small { display: block; color: var(--ink-400); font-size: 8px; font-weight: 700; letter-spacing: .08em; }
-.today-metrics strong { margin: 10px 0 4px; display: block; color: var(--ink); font-size: 25px; line-height: 1; }
-.today-metrics small { color: var(--coral-600); font-size: 7px; }
-.today-panel blockquote { margin: 0; padding: 17px; color: #e8e9ef; background: linear-gradient(145deg, #303444, #242732); border: 1px solid rgba(255,255,255,.07); border-radius: 17px; box-shadow: var(--shadow-sm); }
-.today-panel blockquote span { color: #a8aed3; font-size: 7px; font-weight: 700; letter-spacing: .16em; }
-.today-panel blockquote p { margin: 10px 0 0; font-size: 11px; line-height: 1.65; }
+.date-lockup b { font-size: 19px; font-weight: 500; }.date-lockup small { margin-top: 6px; color: #e0dae5; font-size: 11px; }
+.today-artwork > p { margin: 19px 0 0; color: #eee8f0; font-size: 12px; }
+.week-strip { margin: 0; padding: 13px 10px 10px; display: grid; grid-template-columns: repeat(7, 1fr); list-style: none; }
+.week-strip li { display: grid; justify-items: center; gap: 7px; color: var(--ink-600); font-size: 11px; }
+.week-strip strong { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 10px; font-size: 12px; font-weight: 500; }
+.week-strip i { width: 3px; height: 3px; border-radius: 50%; }.week-strip .current { color: var(--coral-700); }.week-strip .current strong { color: white; background: linear-gradient(145deg, var(--coral-500), var(--coral-700)); box-shadow: 0 4px 9px #6871aa24; }.week-strip .current i { background: var(--rose-500); }
+.session-card { padding: 17px 18px; }.session-card.is-active { background: linear-gradient(130deg, #fff, #eef4f6); }
+.session-card header, .recent-card header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.session-card header > span { font-size: 12px; font-weight: 600; }.session-card small { color: var(--ink-500); font-size: 10px; }
+.session-card p { margin: 11px 0 15px; color: var(--ink-600); font-size: 12px; line-height: 1.7; }
+.session-steps { margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; list-style: none; }
+.session-steps li { display: grid; gap: 7px; color: var(--ink-500); font-size: 10px; }.session-steps i { height: 3px; background: var(--line); border-radius: 3px; transition: background .3s; }.session-steps .current { color: var(--coral-700); }.session-steps .current i { background: linear-gradient(90deg, var(--coral-500), var(--rose-500)); }
+.recent-card { padding: 17px 16px 8px; }.recent-card h2 { margin: 0; font-size: 13px; font-weight: 600; }.recent-card h2 > span { padding: 3px 6px; margin-left: 4px; color: var(--coral-700); background: var(--coral-100); border-radius: 5px; font-size: 10px; }
+.recent-card header button { padding: 5px; border: 0; background: transparent; color: var(--ink-600); font-size: 11px; }.recent-card button:hover { color: var(--coral-700); }
+.recent-card ul { padding: 0; margin: 12px 0 0; list-style: none; }.recent-card li + li { margin-top: 3px; }
+.recent-card li > button { width: 100%; padding: 13px 2px; display: grid; grid-template-columns: 34px minmax(0,1fr) 12px; align-items: center; gap: 10px; border: 0; border-radius: 8px; background: transparent; text-align: left; transition: background .2s; }.recent-card li > button:hover { background: var(--canvas-soft); }
+.goal-symbol { height: 34px; display: grid; place-items: center; background: var(--coral-100); border-radius: 10px; color: var(--coral-700); font-size: 19px; }.symbol-1 { color: #9c697e; background: var(--rose-100); }.symbol-2 { color: var(--moss-700); background: var(--moss-100); }
+.recent-copy { min-width: 0; }.recent-copy strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; line-height: 1.6; font-weight: 500; }.recent-copy small { display: block; margin-top: 5px; font-size: 10px; color: var(--ink-500); }.recent-arrow { color: var(--ink-400); transition: transform .25s; }.recent-card li > button:hover .recent-arrow { transform: translateX(3px); }
+.recent-placeholder { padding: 23px 8px; color: var(--ink-500); font-size: 12px; text-align: center; }.recent-placeholder strong { display: block; font-weight: 500; color: var(--ink-600); }.recent-placeholder p { font-size: 11px; line-height: 1.7; }.recent-placeholder button { display: block; margin: 12px auto 0; padding: 5px; background: none; border: 0; color: var(--coral-700); font-size: 11px; }.empty-spark { display: block; margin-bottom: 10px; font-size: 28px; color: var(--coral-500); }
+.daily-note { margin: 0; padding: 3px 7px; color: var(--ink-500); font-size: 11px; line-height: 1.6; }.daily-note > span { color: var(--rose-500); margin-right: 5px; }
 </style>

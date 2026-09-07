@@ -1,7 +1,7 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { analyzeGoal, clarifyGoal, createGoal, getGoalDetails, getGoals } from '../api/goal'
-import { approvePlan, generatePlan } from '../api/plan'
+import { approvePlan, generatePlan, rejectPlan } from '../api/plan'
 import WorkspaceSidebar from './workspace/WorkspaceSidebar.vue'
 import GoalComposer from './workspace/GoalComposer.vue'
 import AnalysisResult from './workspace/AnalysisResult.vue'
@@ -10,22 +10,71 @@ import GoalLibrary from './workspace/GoalLibrary.vue'
 import GoalDetailDrawer from './workspace/GoalDetailDrawer.vue'
 import TodayPanel from './workspace/TodayPanel.vue'
 import PlanLaunchPanel from './workspace/PlanLaunchPanel.vue'
+import JourneyNavigator from './workspace/JourneyNavigator.vue'
+import SavedPlanView from './workspace/SavedPlanView.vue'
+import { buildGoalText } from '../utils/goalDraft'
 
 const props = defineProps({ user: { type: Object, required: true } })
 defineEmits(['logout'])
 
 const activeView = ref('create')
 const goalText = ref('')
+const goalDetails = ref({})
+const goalSubmissionText = computed(() => buildGoalText(goalText.value, goalDetails.value))
+const viewedPlanGoal = ref(null)
 const activeGoalId = ref(null)
 const activeSavedText = ref('')
 const result = ref(null)
 const plan = ref(null)
+const planActionBlocked = ref(false)
+watch(() => plan.value?.planId, () => { planActionBlocked.value = false })
+const availableDraftGoalId = computed(() => plan.value?.status === 'DRAFT' && !planActionBlocked.value ? plan.value.goalId : null)
 const errorMessage = ref('')
 const errorTitle = ref('请求没有完成')
 const activeRequest = ref(null)
 const clarificationAnswerCount = ref(0)
 const clarificationAnswers = ref([])
 const directPlanGoal = ref(null)
+const journeyStep = ref(1)
+const journeyDirection = ref(1)
+watch(journeyStep, (next, previous) => { journeyDirection.value = next >= previous ? 1 : -1 })
+const completedSteps = computed(() => {
+  if (hasGoalTextChanges.value) return []
+  return [result.value && 1, plan.value && 2, plan.value?.status === 'ACTIVE' && 3].filter(Boolean)
+})
+const requestLabel = computed(() => ({
+  analysis: '正在梳理目标，识别你的起点与方向…',
+  clarification: '正在整理补充信息，更新目标画像…',
+  plan: '正在把目标拆解成阶段与任务，请稍候…',
+  approval: '正在保存正式计划…',
+  rejection: '正在保存这版草稿的选择…',
+})[activeRequest.value] || '')
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+}
+
+function focusJourneyScreen(element) {
+  element.parentElement.style.height = ''
+  element.querySelector('h1, h2')?.setAttribute('tabindex', '-1')
+  element.querySelector('h1, h2')?.focus({ preventScroll: true })
+}
+
+function holdJourneyHeight(element) {
+  const viewport = element.parentElement
+  viewport.getAnimations().forEach(animation => animation.cancel())
+  viewport.style.height = viewport.getBoundingClientRect().height + 'px'
+}
+
+function resizeJourneyViewport(element) {
+  const viewport = element.parentElement
+  const previousHeight = viewport.style.height
+  const nextHeight = element.getBoundingClientRect().height + 'px'
+  viewport.style.height = nextHeight
+  if (previousHeight && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    viewport.animate([{ height: previousHeight }, { height: nextHeight }], { duration: 320, easing: 'cubic-bezier(.22,1,.36,1)' })
+  }
+}
 
 const goalItems = ref([])
 const goalPage = ref(1)
@@ -42,10 +91,17 @@ const userInitial = computed(() => props.user.username?.charAt(0).toUpperCase() 
 const todayDay = String(today.getDate()).padStart(2, '0')
 const todayMonth = new Intl.DateTimeFormat('zh-CN', { month: 'long' }).format(today)
 const todayWeekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(today)
-const activeStep = computed(() => {
-  if (plan.value || directPlanGoal.value || result.value?.readiness === 'READY') return 3
-  if (result.value) return 2
-  return 1
+const activeStep = computed(() => journeyStep.value)
+const hasGoalTextChanges = computed(() => (
+  Boolean(result.value || plan.value)
+  && goalSubmissionText.value !== activeSavedText.value
+))
+const availableJourneySteps = computed(() => {
+  if (directPlanGoal.value) return [3]
+  const steps = [1]
+  if (result.value && !hasGoalTextChanges.value) steps.push(2)
+  if (plan.value && !hasGoalTextChanges.value) steps.push(3)
+  return steps
 })
 
 function normalizeResult(data) {
@@ -113,29 +169,37 @@ function setRequestError(title, error) {
   errorMessage.value = error instanceof Error ? error.message : '请求失败，请稍后重试。'
 }
 
-function scrollToSection(id) {
-  nextTick(() => document.querySelector(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+function selectJourneyStep(step) {
+  if (!availableJourneySteps.value.includes(step) || activeRequest.value) return
+  journeyStep.value = step
+  errorMessage.value = ''
+  scrollToTop()
 }
 
+let goalListRequest = 0
 async function loadGoalPage(page = goalPage.value) {
+  const request = ++goalListRequest
   goalListLoading.value = true
   goalListError.value = ''
   try {
     const data = await getGoals(page, 9)
+    if (request !== goalListRequest) return
     goalItems.value = Array.isArray(data?.items) ? data.items : []
     goalPage.value = Number(data?.page) || page
     goalTotal.value = Number(data?.total) || 0
     goalTotalPages.value = Number(data?.totalPages) || 0
   } catch (error) {
+    if (request !== goalListRequest) return
     goalListError.value = error instanceof Error ? error.message : '目标列表加载失败。'
   } finally {
-    goalListLoading.value = false
+    if (request === goalListRequest) goalListLoading.value = false
   }
 }
 
 async function submitGoal() {
-  const normalized = goalText.value.trim()
+  const normalized = goalSubmissionText.value
   if (!normalized || normalized.length > 1000 || activeRequest.value) return
+  if (result.value && normalized === activeSavedText.value) return selectJourneyStep(2)
 
   activeRequest.value = 'analysis'
   errorMessage.value = ''
@@ -146,6 +210,9 @@ async function submitGoal() {
       const savedGoal = await createGoal(normalized)
       activeGoalId.value = savedGoal.id
       activeSavedText.value = savedGoal.goalText || normalized
+      result.value = null
+      plan.value = null
+      clarificationAnswers.value = []
       loadGoalPage(1)
     }
 
@@ -153,8 +220,9 @@ async function submitGoal() {
     plan.value = null
     clarificationAnswerCount.value = 0
     clarificationAnswers.value = result.value.clarificationQuestions.map((item) => item.answer || '')
+    journeyStep.value = 2
     await loadGoalPage(1)
-    scrollToSection('#analysis')
+    scrollToTop()
   } catch (error) {
     setRequestError(activeGoalId.value ? '目标已保存，但分析没有完成' : '目标保存或分析没有完成', error)
   } finally {
@@ -177,7 +245,7 @@ async function submitClarification() {
 
   if (answers.some((item) => !item.questionId)) {
     errorTitle.value = '问题记录无效'
-    errorMessage.value = '当前问题缺少后端记录 ID，请重新分析目标后再试。'
+    errorMessage.value = '当前问题信息不完整，请重新分析目标后再试。'
     return
   }
 
@@ -188,8 +256,8 @@ async function submitClarification() {
     clarificationAnswerCount.value += answers.length
     clarificationAnswers.value = result.value.clarificationQuestions.map((item) => item.answer || '')
     plan.value = null
+    journeyStep.value = 2
     await loadGoalPage(1)
-    scrollToSection('#analysis')
   } catch (error) {
     setRequestError('补充信息没有提交', error)
   } finally {
@@ -198,13 +266,16 @@ async function submitClarification() {
 }
 
 async function requestPlan(goalId) {
+  if (activeRequest.value || !goalId) return
   activeRequest.value = 'plan'
   errorMessage.value = ''
   try {
     plan.value = normalizePlan(await generatePlan(goalId))
-    scrollToSection('#plan')
+    journeyStep.value = 3
+    scrollToTop()
   } catch (error) {
-    setRequestError('计划生成没有完成', error)
+    if (plan.value?.status === 'REJECTED') handlePlanDecisionError('计划生成没有完成', error)
+    else setRequestError('计划生成没有完成', error)
   } finally {
     activeRequest.value = null
   }
@@ -216,7 +287,7 @@ async function createPlan() {
 }
 
 async function approveCurrentPlan() {
-  if (activeRequest.value || !plan.value?.planId || plan.value.status !== 'DRAFT') return
+  if (activeRequest.value || planActionBlocked.value || !plan.value?.planId || plan.value.status !== 'DRAFT') return
   activeRequest.value = 'approval'
   errorMessage.value = ''
   try {
@@ -234,17 +305,62 @@ async function approveCurrentPlan() {
       }
     }
     await loadGoalPage(1)
-    scrollToSection('#plan')
+    scrollToTop()
   } catch (error) {
-    setRequestError('计划确认没有完成', error)
+    handlePlanDecisionError('计划确认没有完成', error)
   } finally {
     activeRequest.value = null
   }
 }
 
+function handlePlanDecisionError(title, error) {
+  if (error?.status === 409 || error?.status === 404) {
+    planActionBlocked.value = true
+    errorTitle.value = error.status === 409 ? '这版草稿的状态已变化' : '这版草稿已无法读取'
+    errorMessage.value = '当前页面可能不是最新状态，已暂停此版本的后续操作。请到目标库查看最新状态；这里不会自动重新生成计划。'
+    loadGoalPage(goalPage.value)
+  } else setRequestError(title, error)
+}
+
+async function rejectCurrentPlan() {
+  if (activeRequest.value || planActionBlocked.value || !plan.value?.planId || plan.value.status !== 'DRAFT') return
+  activeRequest.value = 'rejection'
+  errorMessage.value = ''
+  try {
+    await rejectPlan(plan.value.planId)
+    // Rejection does not delete the goal or change its READY_TO_PLAN state.
+    plan.value = { ...plan.value, status: 'REJECTED' }
+    await loadGoalPage(goalPage.value)
+  } catch (error) {
+    handlePlanDecisionError('这版草稿暂未放弃', error)
+  } finally {
+    activeRequest.value = null
+  }
+}
+
+async function regenerateCurrentPlan() {
+  if (activeRequest.value || planActionBlocked.value || plan.value?.status !== 'REJECTED') return
+  await requestPlan(plan.value.goalId)
+}
+
+function reviewGoalState() {
+  navigate('library')
+  loadGoalPage(goalPage.value)
+}
+
 async function generateGoalPlan(goal) {
   if (activeRequest.value || !goal?.id) return
+  // Reopen the current session's draft instead of creating a duplicate draft.
+  if (availableDraftGoalId.value === goal.id) {
+    activeView.value = 'create'
+    journeyStep.value = 3
+    detailOpen.value = false
+    errorMessage.value = ''
+    scrollToTop()
+    return
+  }
   goalText.value = goal.goalText || ''
+  goalDetails.value = {}
   activeGoalId.value = goal.id
   activeSavedText.value = goal.goalText || ''
   result.value = null
@@ -253,15 +369,17 @@ async function generateGoalPlan(goal) {
   clarificationAnswerCount.value = 0
   clarificationAnswers.value = []
   directPlanGoal.value = goal
+  journeyStep.value = 3
   detailOpen.value = false
   activeView.value = 'create'
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  scrollToTop()
   await nextTick()
   await requestPlan(goal.id)
 }
 
 function clearJourney() {
   goalText.value = ''
+  goalDetails.value = {}
   activeGoalId.value = null
   activeSavedText.value = ''
   result.value = null
@@ -270,13 +388,15 @@ function clearJourney() {
   clarificationAnswerCount.value = 0
   clarificationAnswers.value = []
   directPlanGoal.value = null
+  journeyStep.value = 1
 }
 
 function startNewGoal() {
+  if (activeRequest.value) return
   clearJourney()
   activeView.value = 'create'
   detailOpen.value = false
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  scrollToTop()
 }
 
 function resetAll() {
@@ -286,26 +406,40 @@ function resetAll() {
 function navigate(view) {
   activeView.value = view
   detailOpen.value = false
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  scrollToTop()
   if (view === 'library' && !goalItems.value.length && !goalListLoading.value) loadGoalPage(1)
 }
 
+function openSavedPlan(goal) {
+  if (!goal?.id) return
+  viewedPlanGoal.value = goal
+  detailOpen.value = false
+  activeView.value = 'saved-plan'
+  scrollToTop()
+}
+
+let detailRequest = 0
 async function openGoalDetails(goalId) {
+  const request = ++detailRequest
   detailOpen.value = true
   detailLoading.value = true
   selectedGoal.value = null
   try {
-    selectedGoal.value = await getGoalDetails(goalId)
+    const goal = await getGoalDetails(goalId)
+    if (request === detailRequest) selectedGoal.value = goal
   } catch (error) {
+    if (request !== detailRequest) return
     detailOpen.value = false
     goalListError.value = error instanceof Error ? error.message : '目标详情加载失败。'
   } finally {
-    detailLoading.value = false
+    if (request === detailRequest) detailLoading.value = false
   }
 }
 
 function continueGoal(goal) {
+  if (activeRequest.value) return
   goalText.value = goal.goalText || ''
+  goalDetails.value = {}
   activeGoalId.value = goal.id
   activeSavedText.value = goal.goalText || ''
   result.value = null
@@ -314,9 +448,10 @@ function continueGoal(goal) {
   clarificationAnswerCount.value = 0
   clarificationAnswers.value = []
   directPlanGoal.value = null
+  journeyStep.value = 1
   detailOpen.value = false
   activeView.value = 'create'
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  scrollToTop()
   nextTick(() => document.querySelector('#goal-input')?.focus())
 }
 
@@ -328,19 +463,25 @@ onMounted(() => loadGoalPage(1))
     <WorkspaceSidebar
       :user="user"
       :active-step="activeStep"
-      :active-view="activeView"
+      :active-view="activeView === 'saved-plan' ? 'library' : activeView"
       :goal-total="goalTotal"
+      :completed-steps="completedSteps"
       @navigate="navigate"
       @logout="$emit('logout')"
     />
 
     <main class="workspace-main">
+      <svg class="workspace-contour" viewBox="0 0 900 440" fill="none" aria-hidden="true">
+        <path v-for="index in 9" :key="index" d="M-70 350C145 50 210 485 470 230S740 0 1020 175" :transform="'translate(0 ' + (index * 11 - 55) + ')'" stroke="currentColor" stroke-width="1" />
+        <circle cx="598" cy="99" r="5" fill="currentColor" stroke="none" />
+        <path d="M575 114v14m-7-7h14" stroke="currentColor" stroke-width="1.5" />
+      </svg>
       <header class="topbar">
         <div class="topbar-inner">
           <button class="mobile-brand" type="button" @click="navigate('create')"><span><i></i></span><strong>GoalPilot</strong></button>
           <nav class="mobile-nav" aria-label="移动端工作区导航">
             <button type="button" :class="{ active: activeView === 'create' }" @click="navigate('create')">工作台</button>
-            <button type="button" :class="{ active: activeView === 'library' }" @click="navigate('library')">目标库</button>
+            <button type="button" :class="{ active: activeView !== 'create' }" @click="navigate('library')">目标库</button>
           </nav>
           <div class="topbar-context">
             <span class="date-number">{{ todayDay }}</span>
@@ -357,58 +498,85 @@ onMounted(() => loadGoalPage(1))
       </header>
 
       <div class="workspace-content">
+        <Transition name="request-notice">
+          <div v-if="activeRequest" class="request-status" role="status"><i></i><span>{{ requestLabel }}</span><small>完成后将自动更新</small></div>
+        </Transition>
         <Transition name="workspace-swap" mode="out-in">
           <div v-if="activeView === 'create'" key="create" class="create-dashboard">
             <div class="view-stack">
-              <GoalComposer
-                v-if="!directPlanGoal"
-                v-model="goalText"
-                :loading="activeRequest === 'analysis'"
-                :error-title="!result ? errorTitle : ''"
-                :error-message="!result ? errorMessage : ''"
-                :user-name="user.username"
-                :current-goal-id="activeGoalId"
-                :analyzed="!!result && goalText.trim() === activeSavedText"
-                @submit="submitGoal"
-                @dismiss-error="errorMessage = ''"
+              <JourneyNavigator
+                :current-step="journeyStep"
+                :available-steps="availableJourneySteps"
+                :goal-id="activeGoalId"
+                :has-unsaved-changes="hasGoalTextChanges"
+                :completed-steps="completedSteps"
+                :busy="!!activeRequest"
+                @select="selectJourneyStep"
               />
 
-              <PlanLaunchPanel
-                v-else-if="!plan"
-                :goal="directPlanGoal"
-                :loading="activeRequest === 'plan'"
-                :error-title="errorTitle"
-                :error-message="errorMessage"
-                @retry="requestPlan(activeGoalId)"
-                @cancel="startNewGoal"
-                @dismiss-error="errorMessage = ''"
-              />
+              <div class="journey-viewport" :style="{ '--journey-direction': journeyDirection }">
+              <Transition name="journey-screen" mode="out-in" @before-leave="holdJourneyHeight" @enter="resizeJourneyViewport" @after-enter="focusJourneyScreen">
+                <div v-if="journeyStep === 1" key="define" class="journey-screen">
+                  <GoalComposer
+                    v-model="goalText"
+                    v-model:details="goalDetails"
+                    :loading="activeRequest === 'analysis'"
+                    :error-title="errorTitle"
+                    :error-message="errorMessage"
+                    :user-name="user.username"
+                    :current-goal-id="activeGoalId"
+                    :analyzed="!!result && goalSubmissionText === activeSavedText"
+                    @submit="submitGoal"
+                    @resume="selectJourneyStep(2)"
+                    @dismiss-error="errorMessage = ''"
+                  />
+                </div>
 
-              <AnalysisResult
-                v-if="result"
-                v-model:answers="clarificationAnswers"
-                :result="result"
-                :active-request="activeRequest"
-                :history-count="clarificationAnswerCount"
-                :error-title="errorTitle"
-                :error-message="plan ? '' : errorMessage"
-                :plan-exists="!!plan"
-                @reset="resetAll"
-                @clarify="submitClarification"
-                @generate-plan="createPlan"
-                @dismiss-error="errorMessage = ''"
-              />
+                <div v-else-if="journeyStep === 2 && result" key="analysis" class="journey-screen">
+                  <AnalysisResult
+                    v-model:answers="clarificationAnswers"
+                    :result="result"
+                    :active-request="activeRequest"
+                    :history-count="clarificationAnswerCount"
+                    :error-title="errorTitle"
+                    :error-message="errorMessage"
+                    :plan-exists="!!plan"
+                    @reset="resetAll"
+                    @clarify="submitClarification"
+                    @generate-plan="createPlan"
+                    @view-plan="selectJourneyStep(3)"
+                    @dismiss-error="errorMessage = ''"
+                  />
+                </div>
 
-              <PlanRoadmap
-                v-if="plan"
-                :plan="plan"
-                :active-request="activeRequest"
-                :error-title="errorTitle"
-                :error-message="errorMessage"
-                @approve="approveCurrentPlan"
-                @reset="resetAll"
-                @dismiss-error="errorMessage = ''"
-              />
+                <div v-else key="plan" class="journey-screen">
+                  <PlanLaunchPanel
+                    v-if="directPlanGoal && !plan"
+                    :goal="directPlanGoal"
+                    :loading="activeRequest === 'plan'"
+                    :error-title="errorTitle"
+                    :error-message="errorMessage"
+                    @retry="requestPlan(activeGoalId)"
+                    @cancel="startNewGoal"
+                  />
+
+                  <PlanRoadmap
+                    v-else-if="plan"
+                    :plan="plan"
+                    :active-request="activeRequest"
+                    :error-title="errorTitle"
+                    :error-message="errorMessage"
+                    :action-blocked="planActionBlocked"
+                    @approve="approveCurrentPlan"
+                    @reject="rejectCurrentPlan"
+                    @regenerate="regenerateCurrentPlan"
+                    @open-library="reviewGoalState"
+                    @reset="resetAll"
+                    @dismiss-error="errorMessage = ''"
+                  />
+                </div>
+              </Transition>
+              </div>
             </div>
 
             <TodayPanel
@@ -418,8 +586,15 @@ onMounted(() => loadGoalPage(1))
               :current-goal-id="activeGoalId"
               :readiness="result?.readiness"
               :plan-status="plan?.status"
+              :items="goalItems"
+              :loading="goalListLoading"
+              :error-message="goalListError"
+              @open-goal="openGoalDetails"
+              @open-library="navigate('library')"
             />
           </div>
+
+          <SavedPlanView v-else-if="activeView === 'saved-plan' && viewedPlanGoal" key="saved-plan" :goal="viewedPlanGoal" @back="navigate('library')" />
 
           <GoalLibrary
             v-else
@@ -430,9 +605,12 @@ onMounted(() => loadGoalPage(1))
             :page="goalPage"
             :total-pages="goalTotalPages"
             :total="goalTotal"
+            :busy="!!activeRequest"
+            :available-draft-goal-id="availableDraftGoalId"
             @select="openGoalDetails"
             @continue="continueGoal"
             @generate-plan="generateGoalPlan"
+            @view-plan="openSavedPlan"
             @new-goal="startNewGoal"
             @refresh="loadGoalPage(goalPage)"
             @page-change="loadGoalPage"
@@ -444,14 +622,19 @@ onMounted(() => loadGoalPage(1))
     </main>
 
     <Teleport to="body">
+      <Transition name="drawer-swap">
       <GoalDetailDrawer
         v-if="detailOpen"
         :goal="selectedGoal"
         :loading="detailLoading"
+        :busy="!!activeRequest"
+        :available-draft-goal-id="availableDraftGoalId"
         @close="detailOpen = false"
         @continue="continueGoal"
         @generate-plan="generateGoalPlan"
+        @view-plan="openSavedPlan"
       />
+      </Transition>
     </Teleport>
   </div>
 </template>
@@ -460,6 +643,7 @@ onMounted(() => loadGoalPage(1))
 .workspace-shell { min-height: 100vh; background: var(--canvas); }
 .workspace-main { position: relative; min-height: 100vh; margin-left: 248px; display: flex; flex-direction: column; }
 .workspace-main::before { content: ''; position: fixed; z-index: 0; top: 64px; right: 0; bottom: 0; left: 248px; pointer-events: none; background: radial-gradient(circle at 84% 5%, rgba(214,164,180,.14), transparent 24%), radial-gradient(circle at 64% 18%, rgba(104,113,170,.09), transparent 28%), radial-gradient(circle at 11% 88%, rgba(112,134,154,.07), transparent 29%); }
+.workspace-contour { position: absolute; z-index: 0; right: 0; bottom: 60px; width: min(70%, 1100px); height: auto; color: #9298b3; opacity: .14; pointer-events: none; mask-image: linear-gradient(90deg, transparent, black 25%, black 75%, transparent); }
 .topbar { position: sticky; z-index: 20; top: 0; height: 64px; background: rgba(247,248,250,.86); border-bottom: 1px solid rgba(213,215,223,.82); backdrop-filter: blur(18px) saturate(1.2); }
 .topbar-inner { width: min(2000px, calc(100% - 64px)); height: 100%; margin-inline: auto; display: flex; align-items: center; justify-content: space-between; }
 .topbar-context { display: flex; align-items: center; gap: 10px; color: var(--ink-500); }
@@ -478,18 +662,39 @@ onMounted(() => loadGoalPage(1))
 .current-user button { padding: 7px 9px; color: var(--ink-500); background: transparent; border: 0; border-left: 1px solid var(--line-strong); font-size: 9px; }
 .current-user button:hover { color: var(--coral-700); }
 .mobile-brand, .mobile-nav { display: none; }
-.workspace-content { position: relative; z-index: 1; width: min(2000px, calc(100% - 64px)); margin-inline: auto; padding: clamp(28px, 3vw, 42px) 0 60px; flex: 1; }
+.workspace-content { position: relative; z-index: 1; width: min(2000px, calc(100% - 48px)); margin-inline: auto; padding: 24px 0 30px; flex: 1; }
 .create-dashboard { display: grid; }
 .create-dashboard > :deep(.today-panel) { display: none; }
-.view-stack { display: grid; gap: 42px; }
+.view-stack { min-width: 0; display: grid; align-content: start; gap: 20px; }
+.journey-viewport { min-width: 0; }
+.journey-screen { min-width: 0; }
+.journey-screen-enter-active { transition: opacity .26s ease, transform .32s var(--ease-out); }
+.journey-screen-leave-active { transition: opacity .14s ease, transform .18s ease; pointer-events: none; }
+.journey-screen-enter-from { opacity: 0; transform: translateX(calc(16px * var(--journey-direction))); }
+.journey-screen-leave-to { opacity: 0; transform: translateX(calc(-10px * var(--journey-direction))); }
+.journey-screen-enter-active :deep(.reveal-item) { animation: none; }
+.journey-screen :deep(h1:focus), .journey-screen :deep(h2:focus) { outline: none; }
+.request-status { position: relative; overflow: hidden; margin-bottom: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 11px; color: var(--coral-800); background: linear-gradient(100deg, var(--coral-100), #f7f1f5, #f0f4f8); border: 1px solid var(--coral-300); border-radius: 12px; font-size: 12px; }
+.request-status > i { width: 14px; height: 14px; flex: 0 0 auto; border: 2px solid var(--coral-300); border-top-color: var(--coral-700); border-radius: 50%; animation: request-spin .8s linear infinite; }
+.request-status small { margin-left: auto; color: var(--ink-500); font-size: 11px; }
+.request-status::after { content: ''; position: absolute; bottom: 0; left: 0; height: 2px; width: 35%; background: linear-gradient(90deg, transparent, var(--coral-500), var(--rose-500), transparent); animation: request-travel 2.2s ease-in-out infinite; }
+.request-notice-enter-active, .request-notice-leave-active { transition: opacity .2s, transform .2s; }
+.request-notice-enter-from, .request-notice-leave-to { opacity: 0; transform: translateY(-6px); }
+@keyframes request-spin { to { transform: rotate(360deg); } }
+@keyframes request-travel { from { transform: translateX(-100%); } to { transform: translateX(390%); } }
+.drawer-swap-enter-active, .drawer-swap-leave-active { transition: opacity .28s ease; }
+.drawer-swap-enter-active :deep(.detail-drawer), .drawer-swap-leave-active :deep(.detail-drawer) { transition: transform .35s var(--ease-out); }
+.drawer-swap-enter-from, .drawer-swap-leave-to { opacity: 0; }
+.drawer-swap-enter-from :deep(.detail-drawer), .drawer-swap-leave-to :deep(.detail-drawer) { transform: translateX(100%); }
 .workspace-footer { position: relative; z-index: 1; width: min(2000px, calc(100% - 64px)); margin-inline: auto; padding: 18px 0 23px; display: flex; justify-content: space-between; color: var(--ink-400); border-top: 1px solid var(--line); font-size: 8px; font-weight: 700; letter-spacing: .13em; }
 .workspace-swap-enter-active, .workspace-swap-leave-active { transition: opacity .2s ease, transform .25s ease; }
 .workspace-swap-enter-from { opacity: 0; transform: translateY(10px); }
 .workspace-swap-leave-to { opacity: 0; transform: translateY(-6px); }
-@media (min-width: 1900px) {
-  .create-dashboard { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 20px; }
+@media (min-width: 1500px) {
+  .create-dashboard { grid-template-columns: minmax(0, 1fr) 280px; align-items: start; gap: 20px; }
   .create-dashboard > :deep(.today-panel) { display: grid; }
 }
+@media (min-width: 2100px) { .create-dashboard { grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; } }
 @media (max-width: 1050px) {
   .workspace-main { margin-left: 0; }
   .workspace-main::before { left: 0; }
@@ -505,13 +710,15 @@ onMounted(() => loadGoalPage(1))
   .topbar-context { display: none; }
 }
 @media (max-width: 620px) {
+  .workspace-contour { display: none; }
   .topbar { height: 63px; }
   .topbar-inner { width: calc(100% - 28px); }
   .mobile-brand strong { display: none; }
   .current-user > span, .current-user button { display: none; }
   .workspace-content, .workspace-footer { width: calc(100% - 28px); margin-right: auto; margin-left: auto; }
-  .workspace-content { padding: 27px 0 48px; }
-  .view-stack { gap: 40px; }
+  .workspace-content { padding: 16px 0 28px; }
+  .request-status small { display: none; }
+  .view-stack { gap: 16px; }
   .workspace-footer { gap: 8px; flex-direction: column; }
 }
 </style>

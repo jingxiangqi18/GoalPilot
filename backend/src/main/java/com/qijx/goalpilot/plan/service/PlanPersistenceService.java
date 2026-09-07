@@ -149,10 +149,20 @@ public class PlanPersistenceService {
         plan.setUpdatedAt(now);
         goal.setUpdatedAt(now);
 
-        int planUpdatedRow = planMapper.updateById(plan);
+        int planUpdatedRow = planMapper.update(
+            plan,
+            new LambdaQueryWrapper<Plan>()
+                .eq(Plan::getId, plan.getId())
+                .eq(Plan::getStatus, PlanStatus.DRAFT)
+        );
+
+        if(planUpdatedRow != 1){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "更新状态失败");
+        }
+
         int goalUpdatedRow = goalMapper.updateById(goal);
 
-        if(planUpdatedRow != 1 || goalUpdatedRow != 1){
+        if(goalUpdatedRow != 1){
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "更新状态失败");
         }
 

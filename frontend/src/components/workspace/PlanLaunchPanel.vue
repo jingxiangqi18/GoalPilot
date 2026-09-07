@@ -15,12 +15,12 @@ defineEmits(['retry', 'cancel', 'dismiss-error'])
     <div class="launch-copy">
       <span>READY GOAL · 待规划目标</span>
       <h1>{{ goal.goalText }}</h1>
-      <p>目标记录 #{{ goal.id }} 已完成分析，正在使用后端保存的最新分析生成计划草稿。</p>
+      <p>目标已完成分析，正在根据最新的信息，为你整理一份行动计划。</p>
     </div>
 
     <div v-if="loading" class="launch-state" aria-live="polite">
       <span class="spinner"></span>
-      <div><strong>正在生成并保存</strong><small>AI 生成后将自动写入计划、阶段与任务记录</small></div>
+      <div><strong>正在生成并保存</strong><small>把目标拆成阶段，再细化成可以开始的任务</small></div>
     </div>
 
     <div v-else-if="errorMessage" class="launch-error" role="alert">
@@ -29,7 +29,7 @@ defineEmits(['retry', 'cancel', 'dismiss-error'])
     </div>
 
     <footer>
-      <span><i></i>直接使用目标 ID 请求，不在浏览器拼装分析数据</span>
+      <span><i></i>计划生成后会自动保存，无需重复填写目标信息</span>
       <button type="button" @click="$emit('cancel')">返回新目标</button>
     </footer>
   </section>

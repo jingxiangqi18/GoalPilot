@@ -1,5 +1,7 @@
 <script setup>
 import { computed } from 'vue'
+import ClarificationForm from './ClarificationForm.vue'
+import { formatDateTime, getDateParts } from '../../utils/dateTime'
 
 const answers = defineModel('answers', { type: Array, required: true })
 const props = defineProps({
@@ -11,14 +13,8 @@ const props = defineProps({
   planExists: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['reset', 'clarify', 'generate-plan', 'dismiss-error'])
+const emit = defineEmits(['reset', 'clarify', 'generate-plan', 'view-plan', 'dismiss-error'])
 const isReady = computed(() => props.result.readiness === 'READY')
-const answeredCount = computed(() => answers.value.filter((answer) => String(answer || '').trim()).length)
-const allQuestionsAnswered = computed(() => {
-  const questions = props.result.clarificationQuestions
-  return questions.length > 0
-    && questions.every((item, index) => item.questionId && String(answers.value[index] || '').trim())
-})
 const summaryPoints = computed(() => {
   const text = String(props.result.goalSummary || '').trim()
   const points = text.split(/[，,；;。！？!?]+/).map((item) => item.trim()).filter(Boolean)
@@ -31,16 +27,10 @@ const summaryDetails = computed(() => summaryPoints.value.slice(1))
 const snapshotLabel = computed(() => {
   if (!props.result.analysisId) return '实时分析'
   const version = props.result.versionNumber ? `V${props.result.versionNumber}` : 'V1'
-  return `${version} · 快照 #${props.result.analysisId}`
+  return `${version} · 已保存的分析`
 })
-const snapshotTime = computed(() => {
-  if (!props.result.createdAt) return ''
-  const date = new Date(props.result.createdAt)
-  if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  }).format(date)
-})
+const snapshotTime = computed(() => formatDateTime(props.result.createdAt))
+const snapshotDate = computed(() => getDateParts(props.result.createdAt))
 </script>
 
 <template>
@@ -48,13 +38,13 @@ const snapshotTime = computed(() => {
     <header class="module-heading">
       <div class="heading-index"><small>STEP</small><strong>02</strong></div>
       <div class="heading-copy">
-        <span>ANALYSIS SNAPSHOT · 分析快照</span>
+        <span>GOAL INSIGHTS · 目标理解</span>
         <h2>目标画像</h2>
         <p>先确认我们理解的是同一件事，再进入计划阶段。</p>
       </div>
       <div class="heading-actions">
-        <span class="snapshot-chip"><i></i>{{ snapshotLabel }}<small v-if="snapshotTime">{{ snapshotTime }}</small></span>
-        <button class="secondary-button" @click="emit('reset')">分析新目标</button>
+        <span class="snapshot-chip"><i></i>{{ snapshotLabel }}<small v-if="snapshotDate"><time :datetime="snapshotDate.datetime" :title="snapshotDate.fullLabel">{{ snapshotTime }}</time></small></span>
+        <button class="secondary-button" :disabled="!!activeRequest" @click="emit('reset')">分析新目标</button>
       </div>
     </header>
 
@@ -84,6 +74,8 @@ const snapshotTime = computed(() => {
       </div>
     </article>
 
+    <details class="insight-details" :open="isReady">
+      <summary><span>查看已知信息与待补充项</span><small>{{ result.knownInformation.length }} 项已明确 · {{ result.missingInformation.length }} 项待补充</small><i>⌄</i></summary>
     <div class="insight-grid">
       <article class="insight-panel panel known">
         <header>
@@ -113,38 +105,17 @@ const snapshotTime = computed(() => {
       </article>
     </div>
 
-    <article v-if="result.clarificationQuestions.length" class="clarify-panel panel">
-      <header>
-        <div>
-          <span class="section-tag">步骤 2 / 3</span>
-          <h3>补充关键信息</h3>
-          <p>只需回答会明显影响计划方向的问题。</p>
-        </div>
-        <span v-if="historyCount" class="history-badge">本次会话已保存 {{ historyCount }} 项回答</span>
-      </header>
+    </details>
 
-      <div class="question-list">
-        <label v-for="(item, index) in result.clarificationQuestions" :key="item.questionId || item.question">
-          <span class="question-number">{{ index + 1 }}</span>
-          <span class="question-body">
-            <small v-if="item.questionId">问题记录 #{{ item.questionId }}</small>
-            <strong>{{ item.question }}</strong>
-            <textarea v-model="answers[index]" rows="3" maxlength="1000" placeholder="在这里写下你的回答……"></textarea>
-          </span>
-        </label>
-      </div>
-
-      <footer>
-        <span>
-          已回答 {{ answeredCount }} / {{ result.clarificationQuestions.length }}
-          <small>本轮问题需完整提交</small>
-        </span>
-        <button class="primary-button" :disabled="!allQuestionsAnswered || !!activeRequest" @click="emit('clarify')">
-          <span v-if="activeRequest === 'clarification'" class="spinner"></span>
-          <template v-else>提交并重新分析 <span>→</span></template>
-        </button>
-      </footer>
-    </article>
+    <ClarificationForm
+      v-if="result.clarificationQuestions.length"
+      v-model:answers="answers"
+      :questions="result.clarificationQuestions"
+      :snapshot-id="result.analysisId"
+      :busy="!!activeRequest"
+      :history-count="historyCount"
+      @submit="emit('clarify')"
+    />
 
     <article v-else class="ready-panel panel">
       <span class="ready-icon">
@@ -155,9 +126,9 @@ const snapshotTime = computed(() => {
         <h3>信息已经准备好</h3>
         <p>现在可以根据原始目标和已确认的信息生成结构化行动计划。</p>
       </div>
-      <button class="light-button" :disabled="!!activeRequest || planExists" @click="emit('generate-plan')">
+      <button class="light-button" :disabled="!!activeRequest || !isReady" @click="emit(planExists ? 'view-plan' : 'generate-plan')">
         <span v-if="activeRequest === 'plan'" class="spinner dark"></span>
-        <template v-else>{{ planExists ? '计划草稿已保存' : '生成执行计划' }} <span>{{ planExists ? '✓' : '→' }}</span></template>
+        <template v-else>{{ planExists ? '查看行动计划' : '生成执行计划' }} <span>→</span></template>
       </button>
     </article>
   </section>
@@ -172,12 +143,11 @@ const snapshotTime = computed(() => {
 }
 
 .module-heading {
-  padding: 30px 2px 3px;
+  padding: 5px 2px 3px;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) auto;
   gap: 16px;
   align-items: center;
-  border-top: 1px solid var(--line-strong);
 }
 
 .heading-index {
@@ -227,7 +197,6 @@ const snapshotTime = computed(() => {
 }
 
 .heading-copy p,
-.clarify-panel header p,
 .ready-panel p {
   margin: 4px 0 0;
   color: var(--ink-600);
@@ -254,9 +223,9 @@ const snapshotTime = computed(() => {
 
 .panel {
   background: var(--paper);
-  border: 1px solid var(--line-strong);
-  border-radius: 15px;
-  box-shadow: var(--shadow-sm);
+  border: 0;
+  border-radius: 20px;
+  box-shadow: var(--surface-shadow);
 }
 
 .summary-panel { position: relative; overflow: hidden; padding: 0; }
@@ -288,8 +257,8 @@ const snapshotTime = computed(() => {
 .summary-layout.single { grid-template-columns: 1fr; }
 
 .summary-lead {
-  min-height: 210px;
-  padding: 29px 31px 31px;
+  min-height: 155px;
+  padding: 22px 25px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -312,7 +281,7 @@ const snapshotTime = computed(() => {
   margin: 14px 0 0;
   color: var(--ink-900);
   font-family: var(--text-cn);
-  font-size: clamp(21px, 1.8vw, 27px);
+  font-size: clamp(20px, 1.5vw, 23px);
   font-weight: 600;
   line-height: 1.55;
   letter-spacing: -.025em;
@@ -371,10 +340,14 @@ const snapshotTime = computed(() => {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
+.insight-details { overflow: hidden; border: 1px solid var(--line-strong); border-radius: 14px; background: rgba(255,255,255,.8); }
+.insight-details > summary { padding: 15px 18px; display: flex; align-items: center; gap: 12px; list-style: none; cursor: pointer; color: var(--ink-600); font-size: 12px; }
+.insight-details > summary::-webkit-details-marker { display: none; }.insight-details summary > small { margin-left: auto; color: var(--ink-500); font-size: 10px; }.insight-details summary > i { font-style: normal; transition: transform .2s; }.insight-details[open] summary > i { transform: rotate(180deg); }.insight-details summary:focus-visible { outline: 2px solid var(--coral-600); outline-offset: -4px; }
+.insight-details .insight-grid { padding: 0 14px 14px; gap: 14px; }.insight-details .insight-panel { box-shadow: none; }
+@media(max-width: 480px) { .insight-details > summary { flex-wrap: wrap; gap: 6px; }.insight-details summary > small { margin-left: 0; }.insight-details summary > i { margin-left: auto; } }
 
 .insight-panel {
-  min-height: 230px;
-  padding: 25px 27px;
+  padding: 19px 21px;
 }
 
 .insight-panel.known { background: linear-gradient(145deg, var(--paper), var(--moss-100)); border-color: var(--moss-300); }
@@ -432,49 +405,6 @@ const snapshotTime = computed(() => {
 .missing .point-index { color: var(--coral-700); }
 .empty-copy { margin: 20px 0 0; color: var(--ink-700); font-size: 14px; line-height: 1.6; }
 
-.clarify-panel { padding: 29px 30px; }
-.clarify-panel > header { display: flex; justify-content: space-between; gap: 24px; }
-.clarify-panel h3 { margin: 7px 0 0; color: var(--ink); font-family: var(--text-cn); font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
-.history-badge { height: fit-content; padding: 7px 10px; color: var(--moss-800); background: var(--moss-100); border: 1px solid var(--moss-300); border-radius: 999px; font-size: 11px; font-weight: 600; }
-
-.question-list {
-  margin-top: 23px;
-  display: grid;
-  gap: 12px;
-}
-
-.question-list label {
-  padding: 18px;
-  display: grid;
-  grid-template-columns: 34px 1fr;
-  gap: 13px;
-  background: var(--canvas-soft);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-}
-
-.question-number {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  color: var(--paper);
-  background: var(--coral-600);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.question-body > small { display: block; margin-bottom: 5px; color: var(--ink-400); font-size: 9px; font-weight: 700; letter-spacing: .07em; }
-.question-body strong { display: block; color: var(--ink); font-size: 15px; line-height: 1.5; }
-.question-body textarea { width: 100%; min-height: 76px; margin-top: 12px; padding: 13px 14px; resize: vertical; color: var(--ink); background: var(--paper); border: 1px solid var(--line-strong); border-radius: 8px; outline: none; font-size: 14px; line-height: 1.55; }
-.question-body textarea:focus { border-color: var(--moss-700); box-shadow: 0 0 0 3px rgba(107,118,107,.12); }
-
-.clarify-panel footer { margin-top: 20px; padding-top: 19px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); }
-.clarify-panel footer > span { color: var(--ink-600); font-size: 12px; }
-.clarify-panel footer > span small { display: block; margin-top: 3px; color: var(--ink-400); font-size: 9px; font-weight: 600; }
-
-.primary-button,
 .light-button {
   min-width: 166px;
   min-height: 45px;
@@ -488,9 +418,7 @@ const snapshotTime = computed(() => {
   font-weight: 600;
 }
 
-.primary-button { color: var(--paper); background: var(--moss-800); border: 1px solid var(--moss-900); }
-.primary-button:hover:not(:disabled) { background: var(--moss-900); }
-.primary-button:disabled, .light-button:disabled { cursor: not-allowed; opacity: .48; }
+.light-button:disabled { cursor: not-allowed; opacity: .48; }
 
 .ready-panel {
   padding: 30px;
@@ -519,6 +447,10 @@ const snapshotTime = computed(() => {
 .spinner { width: 15px; height: 15px; display: inline-block; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
 .spinner.dark { border-color: rgba(83,91,83,.25); border-top-color: var(--moss-900); }
 @keyframes spin { to { transform: rotate(360deg); } }
+.analysis-module { container-type: inline-size; gap: 16px; }
+.ready-panel { padding: 22px; background: linear-gradient(110deg, var(--moss-800), #424560); }.ready-panel h3 { font-size: 22px; }
+@container (max-width: 950px) { .module-heading { grid-template-columns: 48px 1fr; }.heading-actions { grid-column: 2; flex-wrap: wrap; }.summary-layout { grid-template-columns: 1fr; }.summary-points { border-left: 0; border-top: 1px solid var(--line); }.summary-lead { min-height: auto; } }
+@container (max-width: 680px) { .insight-grid { grid-template-columns: 1fr; }.ready-panel { grid-template-columns: 44px 1fr; }.ready-panel .light-button { grid-column: 1 / -1; } }
 
 @media (max-width: 720px) {
   .module-heading { grid-template-columns: 45px 1fr; }
@@ -534,13 +466,10 @@ const snapshotTime = computed(() => {
 }
 
 @media (max-width: 540px) {
-  .insight-panel, .clarify-panel, .ready-panel { padding: 21px; }
+  .insight-panel, .ready-panel { padding: 21px; }
   .summary-topline { padding: 12px 16px 12px 20px; }
   .summary-lead { padding: 24px 21px; }
   .summary-points { padding: 12px 17px; }
-  .summary-topline, .clarify-panel > header, .clarify-panel footer { align-items: flex-start; flex-direction: column; }
-  .question-list label { grid-template-columns: 1fr; }
-  .clarify-panel footer { gap: 13px; }
-  .clarify-panel footer .primary-button { width: 100%; }
+  .summary-topline { align-items: flex-start; flex-direction: column; }
 }
 </style>

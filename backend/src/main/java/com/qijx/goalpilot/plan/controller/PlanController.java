@@ -42,4 +42,13 @@ public class PlanController {
     ){
         return planService.approvePlan(userId, planId);
     }
+
+    @PostMapping("/{planId}/reject")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void rejectPlan(
+        @CurrentUserId Long userId,
+        @PathVariable @Positive Long planId
+    ){
+        planService.rejectPlan(userId, planId);
+    }
 }

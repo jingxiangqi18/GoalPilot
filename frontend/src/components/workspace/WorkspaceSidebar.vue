@@ -6,6 +6,7 @@ const props = defineProps({
   activeStep: { type: Number, required: true },
   activeView: { type: String, required: true },
   goalTotal: { type: Number, default: 0 },
+  completedSteps: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['logout', 'navigate'])
@@ -39,9 +40,9 @@ const steps = [
     <section class="journey" :class="{ muted: activeView !== 'create' }">
       <span class="nav-label">CURRENT JOURNEY</span>
       <ol>
-        <li v-for="step in steps" :key="step.number" :class="{ active: activeStep === step.number, done: activeStep > step.number }">
+        <li v-for="step in steps" :key="step.number" :class="{ active: activeStep === step.number, done: completedSteps.includes(step.number) && activeStep !== step.number }">
           <span class="step-marker">
-            <svg v-if="activeStep > step.number" viewBox="0 0 16 16" fill="none"><path d="m3.5 8 2.8 2.8 6.2-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            <svg v-if="completedSteps.includes(step.number) && activeStep !== step.number" viewBox="0 0 16 16" fill="none"><path d="m3.5 8 2.8 2.8 6.2-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
             <template v-else>{{ String(step.number).padStart(2, '0') }}</template>
           </span>
           <span><strong>{{ step.label }}</strong><small>{{ step.hint }}</small></span>

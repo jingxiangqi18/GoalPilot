@@ -15,6 +15,8 @@ import com.qijx.goalpilot.goal.dto.GoalCreateRequest;
 import com.qijx.goalpilot.goal.dto.GoalListResponse;
 import com.qijx.goalpilot.goal.dto.GoalResponse;
 import com.qijx.goalpilot.goal.service.GoalService;
+import com.qijx.goalpilot.plan.dto.PlanSnapshotResponse;
+import com.qijx.goalpilot.plan.service.PlanQueryService;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -25,9 +27,11 @@ import jakarta.validation.constraints.Positive;
 @RequestMapping("/api/goals")
 public class GoalController {
     private final GoalService goalService;
+    private final PlanQueryService planQueryService;
 
-    public GoalController(GoalService goalService){
+    public GoalController(GoalService goalService, PlanQueryService planQueryService){
         this.goalService = goalService;
+        this.planQueryService = planQueryService;
     }
 
     @PostMapping
@@ -54,5 +58,13 @@ public class GoalController {
         @PathVariable @Positive Long goalId
     ){
         return goalService.findGoalDetails(userId, goalId);
+    }
+
+    @GetMapping("/{goalId}/active-plan")
+    public PlanSnapshotResponse findCurrentActivePlan(
+        @CurrentUserId Long userId,
+        @PathVariable @Positive Long goalId
+    ){
+        return planQueryService.findCurrentActivePlan(userId, goalId);
     }
 }

@@ -45,6 +45,7 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
   let data, status = 200
   if (path === '/api/auth/me') data = { id: 1, username: 'Jakin', email: 'jakin@example.com' }
   else if (path === '/api/goals') data = { items: [goal], total: 1, page: 1, totalPages: 1 }
+  else if (path === '/api/goals/13') data = goal
   else if (path === '/api/goals/13/active-plan') data = plan
   else { errors.push('Unexpected API ' + path); status = 500; data = {} }
   await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
@@ -63,7 +64,10 @@ async function assertStage(index) {
   assert.equal(await directory.nth(index).getAttribute('aria-pressed'), 'true')
 }
 async function refresh() {
+  const response = page.waitForResponse(res => res.url().endsWith('/api/goals/13/active-plan'))
   await page.getByRole('button', { name: '刷新计划', exact: true }).click()
+  await response
+  await page.waitForFunction(() => !document.querySelector('.saved-plan-nav button:last-child').disabled)
   await page.locator('#plan').waitFor()
 }
 

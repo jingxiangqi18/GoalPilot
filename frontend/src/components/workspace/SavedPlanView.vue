@@ -1,11 +1,15 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { getActivePlan } from '../../api/plan'
+import { getGoalDetails } from '../../api/goal'
+import { usePlanTasks } from '../../composables/usePlanTasks'
 import PlanRoadmap from './PlanRoadmap.vue'
 
 const props = defineProps({ goal: { type: Object, required: true } })
-defineEmits(['back'])
+const emit = defineEmits(['back', 'updated'])
 const plan = ref(null)
+const goalStatus = ref('')
+const { pendingTask, taskBusy, taskFeedback, taskUpdatesBlocked, updateTask, refreshTasks } = usePlanTasks(plan, goalStatus, snapshot => emit('updated', snapshot))
 const loading = ref(false)
 const error = ref('')
 const unavailable = ref(false)
@@ -19,12 +23,14 @@ async function loadPlan() {
   unavailable.value = false
   plan.value = null
   try {
-    const data = await getActivePlan(goalId)
+    const [data, latestGoal] = await Promise.all([getActivePlan(goalId), getGoalDetails(goalId)])
     if (request !== requestNumber) return
-    if (data?.status !== 'ACTIVE' || data?.goalId !== goalId || !Array.isArray(data?.stages)) {
+    if (data?.status !== 'ACTIVE' || data?.goalId !== goalId || !Array.isArray(data?.stages) || latestGoal?.id !== goalId || !latestGoal.status) {
       throw new Error('返回的正式计划数据不完整，请重试。')
     }
     plan.value = data
+    goalStatus.value = latestGoal.status
+    emit('updated', { plan: data, goalStatus: latestGoal.status })
   } catch (cause) {
     if (request !== requestNumber) return
     unavailable.value = cause?.status === 404
@@ -45,7 +51,7 @@ onBeforeUnmount(() => { requestNumber++ })
     <header class="saved-plan-nav">
       <button type="button" class="back-button" @click="$emit('back')">← 返回目标库</button>
       <span class="source-goal" :title="goal.goalText">{{ goal.goalText }}</span>
-      <button type="button" :disabled="loading" @click="loadPlan">{{ loading ? '正在读取…' : '刷新计划' }}</button>
+      <button type="button" :disabled="loading || taskBusy" @click="plan ? refreshTasks() : loadPlan()">{{ loading ? '正在读取…' : '刷新计划' }}</button>
     </header>
     <div v-if="loading" class="plan-loading" role="status"><span class="loading-symbol">↗</span><h1>正在打开你的行动路线</h1><p>读取已保存的正式版本，不会重新生成计划。</p><div class="loading-lines"><i></i><i></i><i></i></div></div>
     <div v-else-if="error" class="plan-unavailable" :role="unavailable ? 'status' : 'alert'">
@@ -54,7 +60,7 @@ onBeforeUnmount(() => { requestNumber++ })
       <p>{{ error }}</p>
       <div><button type="button" @click="$emit('back')">返回目标库</button><button type="button" @click="loadPlan">重新读取 ↗</button></div>
     </div>
-    <PlanRoadmap v-else-if="plan" :plan="plan" read-only @reset="$emit('back')" />
+    <PlanRoadmap v-else-if="plan" :plan="plan" read-only :goal-status="goalStatus" :pending-task="pendingTask" :task-busy="taskBusy" :task-feedback="taskFeedback" :task-updates-blocked="taskUpdatesBlocked" @update-task="updateTask" @refresh-tasks="refreshTasks" @open-library="$emit('back')" @reset="$emit('back')" />
   </section>
 </template>
 

@@ -1,14 +1,18 @@
 <script setup>
 import { useId } from 'vue'
+import { taskStatusLabel, taskStatusOptions } from '../../utils/planTasks'
 
 defineProps({
   stage: { type: Object, required: true },
   index: { type: Number, required: true },
   expandedTasks: { type: Array, default: () => [] },
+  editable: { type: Boolean, default: false },
+  pendingTask: { type: Object, default: null },
+  busy: { type: Boolean, default: false },
+  updatesBlocked: { type: Boolean, default: false },
 })
-defineEmits(['toggle-task'])
+defineEmits(['toggle-task', 'update-task'])
 const instanceId = useId()
-const statusLabels = { TODO: '待开始', IN_PROGRESS: '进行中', DONE: '已完成', SKIPPED: '已跳过' }
 const statusClass = status => String(status || 'TODO').toLowerCase().replaceAll('_', '-')
 </script>
 
@@ -26,7 +30,7 @@ const statusClass = status => String(status || 'TODO').toLowerCase().replaceAll(
           <button type="button" :aria-expanded="expandedTasks.includes(taskIndex)" :aria-controls="`${instanceId}-task-${taskIndex}`" @click="$emit('toggle-task', taskIndex)">
             <span class="task-number" aria-hidden="true">{{ String(taskIndex + 1).padStart(2, '0') }}</span>
             <span class="task-title">{{ task.title }}</span>
-            <span class="task-status" :class="statusClass(task.status)"><i aria-hidden="true"></i>{{ statusLabels[task.status] || (task.status ? '状态待确认' : '待开始') }}</span>
+            <span class="task-status" :class="[statusClass(task.status), { saving: pendingTask?.taskId === task.taskId }]"><i aria-hidden="true"></i>{{ pendingTask?.taskId === task.taskId ? '保存中…' : taskStatusLabel(task.status) }}</span>
             <svg class="task-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
           </button>
         </h4>
@@ -35,6 +39,13 @@ const statusClass = status => String(status || 'TODO').toLowerCase().replaceAll(
             <div v-if="task.description" class="task-description"><span>要做什么</span><p>{{ task.description }}</p></div>
             <div v-if="task.completionCriteria" class="task-criteria"><span>完成标准</span><p>{{ task.completionCriteria }}</p></div>
             <p v-if="!task.description && !task.completionCriteria" class="task-empty">这项任务暂未提供详细说明。</p>
+            <div v-if="editable" class="task-actions" :aria-busy="pendingTask?.taskId === task.taskId">
+              <span>记录进展</span>
+              <div role="group" :aria-label="`更新任务「${task.title}」的状态`">
+                <button v-for="option in taskStatusOptions" :key="option.value" type="button" :class="option.value.toLowerCase().replaceAll('_', '-')" :aria-pressed="task.status === option.value" :disabled="busy || updatesBlocked || !task.taskId || !taskStatusOptions.some(item => item.value === task.status) || task.status === option.value" @click="$emit('update-task', { taskId: task.taskId, status: option.value })"><i aria-hidden="true">{{ option.symbol }}</i>{{ task.status === option.value ? option.label : option.action }}</button>
+              </div>
+              <small v-if="!task.taskId">任务信息不完整，请重新读取计划。</small>
+            </div>
           </div></div>
         </div>
       </li>
@@ -74,6 +85,11 @@ const statusClass = status => String(status || 'TODO').toLowerCase().replaceAll(
 .task-details p { max-width: 82ch; margin: 5px 0 0; color: #61596d; font-family: var(--text-cn); font-size: 14px; line-height: 1.9; overflow-wrap: anywhere; white-space: pre-line; }
 .task-criteria { padding: 12px 16px; background: #f1f6f4; border-radius: 12px; }.task-criteria > span { color: #587a6f !important; }.task-criteria p { color: #536d64; }
 .task-empty { color: var(--ink-500); font-size: 13px; line-height: 1.8; }
+.task-actions { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 15px; padding-top: 5px; }.task-actions > span { color: #84778f; font-size: 11px; }.task-actions > div { display: flex; flex-wrap: wrap; gap: 7px; }.task-actions small { flex-basis: 100%; font-size: 11px; color: var(--ink-500); }
+.task-actions button { display: inline-flex; justify-content: center; align-items: center; gap: 6px; min-height: 34px; padding: 7px 12px; border: 0; border-radius: 9px; background: #f1eef7; color: #786789; font-size: 11px; }.task-actions button i { font-style: normal; font-size: 14px; }.task-actions button:hover:not(:disabled) { background: #e9e2f3; transform: translateY(-1px); }.task-actions button.done { background: #e9f2ed; color: #53796c; }.task-actions button.skipped { background: #f5edf2; color: #8b7483; }
+.task-actions button:disabled { opacity: .5; }.task-actions button[aria-pressed="true"] { opacity: 1; color: #fff; background: #7c6d95; }.task-actions button.done[aria-pressed="true"] { background: #557c6b; }
+.task-status.saving i { width: 9px; height: 9px; border: 1.5px solid #c9c0da; border-top-color: #807298; background: transparent; animation: task-saving .7s linear infinite; }@keyframes task-saving { to { transform: rotate(360deg); } }
+@container stage (max-width: 450px) { .task-actions { align-items: flex-start; }.task-actions > div { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }.task-actions button { padding-inline: 7px; min-height: 38px; } }
 @container stage (min-width: 1050px) {
   .task-details:has(.task-description):has(.task-criteria) { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: start; gap: 28px; }
 }

@@ -14,12 +14,19 @@ import com.qijx.goalpilot.goal.entity.GoalAnalysis;
 import com.qijx.goalpilot.goal.mapper.GoalMapper;
 import com.qijx.goalpilot.goal.service.GoalAnalysisPersistenceService;
 import com.qijx.goalpilot.plan.domain.PlanStatus;
+import com.qijx.goalpilot.plan.domain.PlanTaskStatus;
 import com.qijx.goalpilot.plan.dto.PlanApprovalResponse;
 import com.qijx.goalpilot.plan.dto.PlanGenerationContext;
 import com.qijx.goalpilot.plan.dto.PlanGenerationResponse;
 import com.qijx.goalpilot.plan.dto.PlanSnapshotResponse;
+import com.qijx.goalpilot.plan.dto.PlanTaskResponse;
+import com.qijx.goalpilot.plan.dto.PlanTaskStatusUpdateRequest;
 import com.qijx.goalpilot.plan.entity.Plan;
+import com.qijx.goalpilot.plan.entity.PlanStageEntity;
+import com.qijx.goalpilot.plan.entity.PlanTask;
 import com.qijx.goalpilot.plan.mapper.PlanMapper;
+import com.qijx.goalpilot.plan.mapper.PlanStageMapper;
+import com.qijx.goalpilot.plan.mapper.PlanTaskMapper;
 
 @Service
 public class PlanService {
@@ -28,19 +35,25 @@ public class PlanService {
     private final PlanGenerationService planGenerationService;
     private final PlanPersistenceService planPersistenceService;
     private final PlanMapper planMapper;
+    private final PlanTaskMapper planTaskMapper;
+    private final PlanStageMapper planStageMapper;
 
     public PlanService(
         GoalMapper goalMapper,
         GoalAnalysisPersistenceService goalAnalysisPersistenceService,
         PlanGenerationService planGenerationService,
         PlanPersistenceService planPersistenceService,
-        PlanMapper planMapper
+        PlanMapper planMapper,
+        PlanTaskMapper planTaskMapper,
+        PlanStageMapper planStageMapper
     ){
         this.goalMapper = goalMapper;
         this.goalAnalysisPersistenceService = goalAnalysisPersistenceService;
         this.planGenerationService = planGenerationService;
         this.planPersistenceService = planPersistenceService;
         this.planMapper = planMapper;
+        this.planTaskMapper = planTaskMapper;
+        this.planStageMapper = planStageMapper;
     }
 
     public PlanSnapshotResponse generateDraft(Long userId, Long goalId){
@@ -138,6 +151,69 @@ public class PlanService {
         if(updatedRows != 1){
             throw new ResponseStatusException(HttpStatus.CONFLICT, "计划状态已变化");
         }
+    }
+
+    public PlanTaskResponse updateTaskStatus(Long userId, Long taskId, PlanTaskStatusUpdateRequest request){
+        PlanTask task = planTaskMapper.selectById(taskId);
+
+        if(task == null){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在");
+        }
+
+        PlanStageEntity stage = planStageMapper.selectById(task.getPlanStageId());
+
+        if(stage == null){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "任务阶段不存在");
+        }
+
+        Plan plan = planMapper.selectById(stage.getPlanId());
+
+        if(plan == null){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "任务计划不存在");
+        }
+
+        Goal goal = goalMapper.selectOne(
+            new LambdaQueryWrapper<Goal>()
+                .eq(Goal::getId, plan.getGoalId())
+                .eq(Goal::getUserId, userId)
+        );
+
+        if(goal == null){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "目标不存在");
+        }
+
+        if(plan.getStatus() != PlanStatus.ACTIVE){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "任务计划状态有误");
+        }
+
+        if(goal.getStatus() != GoalStatus.ACTIVE){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "目标状态有误");
+        }
+
+        PlanTaskStatus currentStatus = task.getStatus();
+        PlanTaskStatus targetStatus = request.status();
+
+        if(currentStatus == targetStatus){
+            return PlanTaskResponse.from(task);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        task.setStatus(targetStatus);
+        task.setUpdatedAt(now);
+
+        int updatedRows = planTaskMapper.update(
+            task,
+            new LambdaQueryWrapper<PlanTask>()
+                .eq(PlanTask::getId, taskId)
+                .eq(PlanTask::getStatus, currentStatus)
+        );
+
+        if(updatedRows != 1){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "任务状态更新失败");
+        }
+
+        return PlanTaskResponse.from(task);
     }
 
     private Goal findOwnedGoal(Long userId, Long goalId){

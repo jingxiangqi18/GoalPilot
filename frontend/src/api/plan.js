@@ -1,4 +1,4 @@
-import { getJson, postJson } from './client'
+import { getJson, patchJson, postJson } from './client'
 
 export async function getActivePlan(goalId) {
   return getJson(`/api/goals/${encodeURIComponent(goalId)}/active-plan`)
@@ -15,4 +15,8 @@ export async function approvePlan(planId) {
 export async function rejectPlan(planId) {
   // The endpoint returns 204 with no JSON body.
   return postJson(`/api/plans/${encodeURIComponent(planId)}/reject`)
+}
+
+export function updatePlanTaskStatus(taskId, status) {
+  return patchJson(`/api/tasks/${encodeURIComponent(taskId)}/status`, { status })
 }

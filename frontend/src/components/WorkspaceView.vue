@@ -13,6 +13,7 @@ import PlanLaunchPanel from './workspace/PlanLaunchPanel.vue'
 import JourneyNavigator from './workspace/JourneyNavigator.vue'
 import SavedPlanView from './workspace/SavedPlanView.vue'
 import { buildGoalText } from '../utils/goalDraft'
+import { usePlanTasks } from '../composables/usePlanTasks'
 
 const props = defineProps({ user: { type: Object, required: true } })
 defineEmits(['logout'])
@@ -26,12 +27,18 @@ const activeGoalId = ref(null)
 const activeSavedText = ref('')
 const result = ref(null)
 const plan = ref(null)
+const planGoalStatus = ref('')
+const { pendingTask, taskBusy, taskFeedback, taskUpdatesBlocked, updateTask, refreshTasks } = usePlanTasks(plan, planGoalStatus, syncPlanSnapshot)
 const planActionBlocked = ref(false)
 watch(() => plan.value?.planId, () => { planActionBlocked.value = false })
 const availableDraftGoalId = computed(() => plan.value?.status === 'DRAFT' && !planActionBlocked.value ? plan.value.goalId : null)
 const errorMessage = ref('')
 const errorTitle = ref('请求没有完成')
 const activeRequest = ref(null)
+watch(taskBusy, busy => {
+  if (busy && !activeRequest.value) activeRequest.value = 'task'
+  if (!busy && activeRequest.value === 'task') activeRequest.value = null
+})
 const clarificationAnswerCount = ref(0)
 const clarificationAnswers = ref([])
 const directPlanGoal = ref(null)
@@ -48,6 +55,7 @@ const requestLabel = computed(() => ({
   plan: '正在把目标拆解成阶段与任务，请稍候…',
   approval: '正在保存正式计划…',
   rejection: '正在保存这版草稿的选择…',
+  task: '正在同步任务进展…',
 })[activeRequest.value] || '')
 
 function scrollToTop() {
@@ -271,6 +279,7 @@ async function requestPlan(goalId) {
   errorMessage.value = ''
   try {
     plan.value = normalizePlan(await generatePlan(goalId))
+    planGoalStatus.value = 'READY_TO_PLAN'
     journeyStep.value = 3
     scrollToTop()
   } catch (error) {
@@ -292,6 +301,7 @@ async function approveCurrentPlan() {
   errorMessage.value = ''
   try {
     const approved = await approvePlan(plan.value.planId)
+    planGoalStatus.value = approved?.goalStatus || 'ACTIVE'
     plan.value = {
       ...plan.value,
       versionNumber: approved?.versionNumber ?? plan.value.versionNumber,
@@ -346,6 +356,16 @@ async function regenerateCurrentPlan() {
 function reviewGoalState() {
   navigate('library')
   loadGoalPage(goalPage.value)
+}
+
+function syncPlanSnapshot({ plan: latest, goalStatus }) {
+  // A saved-plan page may show a different goal from the workbench draft.
+  if (plan.value?.status === 'ACTIVE' && plan.value.goalId === latest.goalId) {
+    plan.value = latest
+    planGoalStatus.value = goalStatus
+  }
+  goalItems.value = goalItems.value.map(goal => goal.id === latest.goalId ? { ...goal, status: goalStatus } : goal)
+  if (directPlanGoal.value?.id === latest.goalId) directPlanGoal.value = { ...directPlanGoal.value, status: goalStatus }
 }
 
 async function generateGoalPlan(goal) {
@@ -567,6 +587,13 @@ onMounted(() => loadGoalPage(1))
                     :error-title="errorTitle"
                     :error-message="errorMessage"
                     :action-blocked="planActionBlocked"
+                    :goal-status="planGoalStatus"
+                    :pending-task="pendingTask"
+                    :task-busy="taskBusy"
+                    :task-feedback="taskFeedback"
+                    :task-updates-blocked="taskUpdatesBlocked"
+                    @update-task="updateTask"
+                    @refresh-tasks="refreshTasks"
                     @approve="approveCurrentPlan"
                     @reject="rejectCurrentPlan"
                     @regenerate="regenerateCurrentPlan"
@@ -594,7 +621,7 @@ onMounted(() => loadGoalPage(1))
             />
           </div>
 
-          <SavedPlanView v-else-if="activeView === 'saved-plan' && viewedPlanGoal" key="saved-plan" :goal="viewedPlanGoal" @back="navigate('library')" />
+          <SavedPlanView v-else-if="activeView === 'saved-plan' && viewedPlanGoal" key="saved-plan" :goal="viewedPlanGoal" @back="reviewGoalState" @updated="syncPlanSnapshot" />
 
           <GoalLibrary
             v-else

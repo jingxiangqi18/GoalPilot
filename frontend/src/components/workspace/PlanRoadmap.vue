@@ -3,19 +3,27 @@ import { computed, nextTick, ref, useId, watch } from 'vue'
 import DateStamp from './DateStamp.vue'
 import PlanStageCard from './PlanStageCard.vue'
 import PlanDecisionPanel from './PlanDecisionPanel.vue'
+import { taskProgress } from '../../utils/planTasks'
 
 const props = defineProps({
   plan: { type: Object, required: true },
   activeRequest: { type: String, default: null },
   errorTitle: { type: String, default: '' },
   errorMessage: { type: String, default: '' },
-  readOnly: { type: Boolean, default: false },
+  readOnly: { type: Boolean, default: false }, // Plan decisions only; task edits have their own status checks.
   actionBlocked: { type: Boolean, default: false },
+  goalStatus: { type: String, default: '' },
+  pendingTask: { type: Object, default: null },
+  taskBusy: { type: Boolean, default: false },
+  taskFeedback: { type: Object, default: null },
+  taskUpdatesBlocked: { type: Boolean, default: false },
 })
-defineEmits(['reset', 'approve', 'reject', 'regenerate', 'open-library', 'dismiss-error'])
+defineEmits(['reset', 'approve', 'reject', 'regenerate', 'open-library', 'dismiss-error', 'update-task', 'refresh-tasks'])
 
 const instanceId = useId()
 const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + stage.tasks.length, 0))
+const progress = computed(() => taskProgress(props.plan.stages.flatMap(stage => stage.tasks)))
+const editableTasks = computed(() => props.plan.status === 'ACTIVE' && props.goalStatus === 'ACTIVE')
 const planStatusLabels = { DRAFT: '草稿', ACTIVE: '已启用', REJECTED: '未采用', SUPERSEDED: '已替代' }
 const planStatusLabel = computed(() => props.actionBlocked ? '状态待核对' : planStatusLabels[props.plan.status] || '状态待确认')
 const snapshotTimeLabel = computed(() => props.plan.updatedAt ? '最近更新' : '保存时间')
@@ -29,7 +37,7 @@ const stageDirectory = ref(null)
 const stageContent = ref(null)
 let focusAfterSwitch = false
 
-watch(() => [props.plan.planId, props.plan.stages.length], () => {
+watch([() => props.plan.planId, () => props.plan.stages.length], () => {
   selectedStage.value = 0
   expandedTasks.value = {}
   summaryOpen.value = false
@@ -98,14 +106,29 @@ function focusStageHeading() {
       <svg class="summary-ornament" viewBox="0 0 100 64" fill="none" aria-hidden="true"><path d="M5 51c29 0 10-39 39-39s-2 35-14 17S62 4 90 13M63 53c7-12 16-14 30-11" /><circle cx="5" cy="51" r="3" /><path d="M81 24v8m-4-4h8" /></svg>
     </article>
 
+    <div v-if="taskFeedback" class="execution-notice" :class="taskFeedback.kind" :role="taskFeedback.kind === 'error' ? 'alert' : 'status'">
+      <span aria-hidden="true">{{ taskFeedback.kind === 'success' ? '✓' : taskFeedback.kind === 'error' ? '!' : '↻' }}</span>
+      <p>{{ taskFeedback.message }}</p>
+      <div v-if="taskFeedback.kind === 'error'"><button type="button" :disabled="taskBusy || !!activeRequest" @click="$emit('refresh-tasks')">{{ taskBusy ? '正在读取…' : '重新读取状态' }}</button><button type="button" :disabled="taskBusy" @click="$emit('open-library')">返回目标库</button></div>
+    </div>
+    <span v-if="pendingTask" class="sr-only" role="status">正在保存任务状态，请稍候。</span>
+
     <div v-if="currentStage" class="roadmap-workspace">
       <nav class="stage-directory" aria-label="计划阶段目录">
         <header><h3>阶段目录</h3><span>{{ plan.stages.length }} 个阶段 · {{ taskCount }} 项任务</span></header>
+        <div v-if="plan.status === 'ACTIVE'" class="execution-progress">
+          <div><span>任务完成</span><strong>{{ progress.done }}<small> 共 {{ progress.total }} 项</small></strong></div>
+          <div class="execution-track" role="progressbar" aria-label="任务完成进度" :aria-valuenow="progress.done" :aria-valuemax="progress.total || 1" :aria-valuemin="0" :aria-valuetext="`已完成 ${progress.done} 项，共 ${progress.total} 项`"><i :style="{ width: progress.percent + '%' }"></i></div>
+          <p v-if="!editableTasks">目标当前不在进行中，任务仅供查看。</p>
+          <p v-else-if="progress.done === progress.total && progress.total">全部任务已完成，不会自动更改目标状态。</p>
+          <p v-else-if="progress.skipped">{{ progress.skipped }} 项已跳过，不计入已完成。</p>
+          <p v-else>展开任务，记录这一步的进展。</p>
+        </div>
         <ol ref="stageDirectory">
           <li v-for="(stage, index) in plan.stages" :key="stage.stageId || index" :class="{ selected: selectedStage === index }">
             <button type="button" :aria-pressed="selectedStage === index" :aria-controls="instanceId + '-stage'" @click="selectStage(index)">
               <span class="directory-number" aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</span>
-              <span class="directory-copy"><strong>{{ stage.title }}</strong><small>{{ stage.timeRange || '时间待安排' }}<i aria-hidden="true">·</i>{{ stage.tasks.length }} 项任务</small></span>
+              <span class="directory-copy"><strong>{{ stage.title }}</strong><small>{{ stage.timeRange || '时间待安排' }}<i aria-hidden="true">·</i>{{ plan.status === 'ACTIVE' ? `完成 ${taskProgress(stage.tasks).done} 项，共 ${stage.tasks.length} 项` : `${stage.tasks.length} 项任务` }}</small></span>
               <span class="directory-arrow" aria-hidden="true">↗</span>
             </button>
           </li>
@@ -114,7 +137,7 @@ function focusStageHeading() {
       </nav>
       <div :id="instanceId + '-stage'" ref="stageContent" class="stage-content">
         <Transition name="stage-focus" mode="out-in" @after-enter="focusStageHeading">
-          <PlanStageCard :key="selectedStage" :stage="currentStage" :index="selectedStage" :expanded-tasks="openTasks(selectedStage)" @toggle-task="toggleTask" />
+          <PlanStageCard :key="selectedStage" :stage="currentStage" :index="selectedStage" :expanded-tasks="openTasks(selectedStage)" :editable="editableTasks" :pending-task="pendingTask" :busy="taskBusy || !!activeRequest" :updates-blocked="taskUpdatesBlocked || actionBlocked" @toggle-task="toggleTask" @update-task="$emit('update-task', $event)" />
         </Transition>
         <div v-if="plan.stages.length > 1" class="stage-pagination">
           <button type="button" :disabled="selectedStage === 0" @click="selectStage(selectedStage - 1, true)"><span aria-hidden="true">←</span> 上一阶段</button>
@@ -184,6 +207,12 @@ function focusStageHeading() {
 .directory-arrow { padding-top: 5px; font-size: 14px; color: #9487ab; opacity: 0; }.selected .directory-arrow { opacity: 1; }
 .directory-note { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 23px 12px 0; color: #8a8198; font-size: 11px; }.directory-note svg { width: 66px; height: 27px; flex-shrink: 0; stroke: #b5abc6; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
 .stage-content { min-width: 0; }
+.execution-progress { margin: 0 10px 18px; padding: 15px; border-radius: 13px; background: linear-gradient(110deg, #efedf7, #edf4f1); }
+.execution-progress > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: #746785; font-size: 11px; }.execution-progress strong { color: #5d5277; font-size: 19px; font-family: var(--display); font-weight: 500; }.execution-progress strong small { font-family: var(--text-cn); font-size: 10px; color: #7d7489; font-weight: 400; }
+.execution-track { height: 5px; overflow: hidden; margin: 10px 0; border-radius: 9px; background: #dcd8e7; }.execution-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #9a8cb8, #83a99d); transition: width .35s var(--ease-out); }
+.execution-progress p { margin: 0; color: #797082; font-size: 10px; line-height: 1.8; }
+.execution-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 13px 17px; border-radius: 13px; color: #5b7069; background: #eaf2ef; font-size: 12px; }.execution-notice.error { background: var(--danger-soft); color: var(--danger); }.execution-notice.info { background: #eeecf6; color: #6b5d87; }
+.execution-notice > span { display: grid; place-items: center; width: 23px; height: 23px; background: #ffffff80; border-radius: 50%; }.execution-notice p { flex: 1; min-width: min(100%, 180px); margin: 0; line-height: 1.8; overflow-wrap: anywhere; }.execution-notice > div { display: flex; flex-wrap: wrap; gap: 8px; }.execution-notice button { padding: 7px 10px; border: 0; border-radius: 7px; color: inherit; background: #ffffffaa; font-size: 11px; }.execution-notice button:disabled { opacity: .55; }
 .stage-pagination { display: flex; justify-content: space-between; align-items: center; gap: 9px; margin-top: 13px; }
 .stage-pagination > span { font-size: 11px; color: #8b8199; }.stage-pagination > span strong { color: #766489; font-family: var(--display); font-weight: 500; margin-inline: 3px; }
 .stage-pagination button { min-height: 36px; padding: 7px 9px; display: inline-flex; align-items: center; gap: 9px; color: #716582; background: transparent; border: 0; border-radius: 8px; font-size: 12px; }.stage-pagination button:hover:not(:disabled) { background: #eae5f2; }.stage-pagination button:disabled { opacity: .38; }
@@ -195,6 +224,7 @@ function focusStageHeading() {
   .roadmap-workspace { grid-template-columns: minmax(0, 1fr); gap: 15px; }.stage-directory { padding: 0; }.stage-directory > header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; padding: 0 4px 12px; gap: 8px; }
   .stage-directory ol { display: flex; gap: 9px; overflow-x: auto; padding: 3px 3px 10px; scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: #c9c0da transparent; }
   .stage-directory li { flex: 0 0 228px; scroll-snap-align: start; }.stage-directory li:not(:last-child)::after, .directory-note { display: none; }
+  .execution-progress { margin: 0 3px 13px; }
   .stage-directory button { height: 100%; padding: 13px 11px; gap: 9px; background: #e9e5f150; }.directory-copy strong { font-size: 12px; }.directory-copy small { margin-top: 5px; }
 }
 @container plan (max-width: 600px) {

@@ -18,7 +18,7 @@ const props = defineProps({
   taskFeedback: { type: Object, default: null },
   taskUpdatesBlocked: { type: Boolean, default: false },
 })
-defineEmits(['reset', 'approve', 'reject', 'regenerate', 'open-library', 'dismiss-error', 'update-task', 'refresh-tasks'])
+defineEmits(['reset', 'approve', 'reject', 'regenerate', 'open-library', 'dismiss-error', 'update-task', 'refresh-tasks', 'ask-assistant'])
 
 const instanceId = useId()
 const taskCount = computed(() => props.plan.stages.reduce((sum, stage) => sum + stage.tasks.length, 0))
@@ -102,6 +102,7 @@ function focusStageHeading() {
           <div><ul class="summary-points"><li v-for="(point, index) in summaryPoints.slice(1)" :key="index">{{ point }}</li></ul></div>
         </div>
         <button v-if="summaryPoints.length > 1" type="button" class="summary-toggle" :aria-expanded="summaryOpen" :aria-controls="instanceId + '-summary'" @click="summaryOpen = !summaryOpen">{{ summaryOpen ? '收起完整思路' : '展开完整思路' }}<svg :class="{ open: summaryOpen }" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button>
+        <button v-if="plan.status === 'ACTIVE'" type="button" class="plan-assistant-button" :disabled="taskBusy || !!activeRequest" @click="$emit('ask-assistant')"><span aria-hidden="true">✧</span> 询问目标助手 <small>只读问答</small><span aria-hidden="true">↗</span></button>
       </div>
       <svg class="summary-ornament" viewBox="0 0 100 64" fill="none" aria-hidden="true"><path d="M5 51c29 0 10-39 39-39s-2 35-14 17S62 4 90 13M63 53c7-12 16-14 30-11" /><circle cx="5" cy="51" r="3" /><path d="M81 24v8m-4-4h8" /></svg>
     </article>
@@ -174,6 +175,7 @@ function focusStageHeading() {
 
 <style scoped>
 .plan-module { container: plan / inline-size; scroll-margin-top: 24px; display: grid; gap: 22px; font-family: var(--text-cn); }
+.plan-assistant-button { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 15px; padding: 8px 12px; color: #756083; background: linear-gradient(110deg, #ece6f5, #f4eaf0); border: 0; border-radius: 9px 4px 9px 9px; font-size: 12px; }.plan-assistant-button > span { font-size: 17px; }.plan-assistant-button small { padding-left: 5px; color: #897494; font-size: 10px; }.plan-assistant-button:hover:not(:disabled) { transform: translateX(3px); box-shadow: 0 3px 10px #816b9814; }.plan-assistant-button:disabled { opacity: .5; }
 .module-heading { display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 7px 5px 0; }
 .heading-copy { min-width: 0; }
 .plan-eyebrow { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; color: #777083; font-size: 12px; }

@@ -19,3 +19,12 @@ export async function analyzeGoal(goalId) {
 export async function clarifyGoal(goalId, answers) {
   return postJson(`/api/goals/${encodeURIComponent(goalId)}/clarifications`, { answers })
 }
+
+// The assistant is single-turn and read-only. Do not send local history or plan data.
+export async function askGoalAssistant(goalId, message) {
+  const data = await postJson(`/api/goals/${encodeURIComponent(goalId)}/assistant`, { message })
+  if (typeof data?.reply !== 'string' || !data.reply.trim()) {
+    throw new Error('助手未返回有效回答，请稍后重新提问。')
+  }
+  return data.reply.trim()
+}

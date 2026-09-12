@@ -133,6 +133,7 @@ try {
   await page.locator('.execution-notice.success').waitFor()
   await assertProgress(3)
   await page.locator('.main-nav').getByRole('button', { name: '规划工作台' }).click()
+  await page.locator('.session-tools').getByRole('button', { name: /计划与任务/ }).click()
   await page.locator('#plan').waitFor()
   await assertProgress(3)
   await stage(0)

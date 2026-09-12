@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import planeArtwork from '../../assets/goalpilot-plane-charm-v1.webp'
 import GoalStatusBadge from './GoalStatusBadge.vue'
+import DateStamp from './DateStamp.vue'
 import { goalPresentation, goalDate, priorityLabel } from '../../utils/goalPresentation'
 
 const props = defineProps({
@@ -11,7 +12,7 @@ const props = defineProps({
   availableDraftGoalId: { type: Number, default: null },
 })
 
-const emit = defineEmits(['close', 'continue', 'generate-plan', 'view-plan'])
+const emit = defineEmits(['close', 'continue', 'generate-plan', 'view-plan', 'ask-assistant'])
 const drawer = ref(null)
 const previousFocus = document.activeElement
 const previousOverflow = document.body.style.overflow
@@ -76,7 +77,7 @@ onUnmounted(() => {
           <span class="chapter-label">{{ state.chapter }}</span>
           <h2 :class="{ 'long-title': goalLines[0]?.length > 90 }">{{ goalLines[0] }}</h2>
           <div v-if="goalLines.length > 1" class="goal-description"><p v-for="(line, index) in goalLines.slice(1)" :key="index">{{ line }}</p></div>
-          <p class="created-date"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="5" width="14" height="12" rx="3" /><path d="M6 3v4m8-4v4M3 9h14" /></svg>记录于 {{ goalDate(goal.createdAt) }}</p>
+          <p class="created-date"><DateStamp :value="goal.createdAt" label="记录于" compact :show-time="false" /></p>
         </section>
 
         <section class="boundary-section">
@@ -99,7 +100,8 @@ onUnmounted(() => {
           </ol>
           <p>{{ state.hint }}</p>
         </section>
-        <div class="detail-timestamp"><span>最近更新</span><time>{{ goalDate(goal.updatedAt || goal.createdAt, true) }}</time></div>
+        <button type="button" class="detail-assistant" :disabled="busy" @click="emit('ask-assistant', goal)"><span class="assistant-spark" aria-hidden="true">✧</span><span><strong>询问目标助手</strong><small>了解正式计划、任务与完成标准 · 只读问答</small></span><i aria-hidden="true">↗</i></button>
+        <div class="detail-timestamp"><DateStamp :value="goal.updatedAt || goal.createdAt" :label="goal.updatedAt ? '最近更新' : '记录时间'" compact /></div>
         <div class="detail-endnote" aria-hidden="true"><span></span><i>✧</i><small>每一小步，都算数。</small><span></span></div>
       </div>
 
@@ -139,7 +141,6 @@ onUnmounted(() => {
 .goal-description { padding: 1px 0 8px 14px; margin: -4px 0 10px; border-left: 2px solid #c9c4df; }
 .goal-description p { margin: 0 0 7px; color: var(--ink-600); font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
 .created-date { display: flex; align-items: center; gap: 7px; margin: 0; color: #717183; font-size: 12px; }
-.created-date svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.3; }
 .boundary-section { margin: 24px 28px 0; }
 .section-heading { display: flex; align-items: center; gap: 9px; }
 .section-heading h3 { margin: 0; font-size: 15px; font-weight: 600; }
@@ -165,7 +166,8 @@ onUnmounted(() => {
 .lifecycle-card li.active i { color: white; background: linear-gradient(140deg, #928abd, #6d70a5); border-color: transparent; box-shadow: 0 0 0 4px #e5e2f1; }
 .lifecycle-card li.done i { color: #726b9c; background: #e8e5f2; border-color: #dad5eb; }
 .lifecycle-card > p { margin: 0; padding-top: 13px; color: #6e6d80; border-top: 1px solid #dfddea; font-size: 12px; line-height: 1.8; }
-.detail-timestamp { display: flex; justify-content: space-between; gap: 16px; padding: 20px 28px 0; color: var(--ink-500); font-size: 11px; }
+.detail-timestamp { display: flex; padding: 20px 28px 0; }
+.detail-assistant { width: calc(100% - 56px); display: flex; align-items: center; gap: 12px; margin: 20px 28px 0; padding: 14px 15px; text-align: left; border: 0; border-radius: 14px 5px 14px 14px; background: linear-gradient(110deg, #eee8f6, #f8eef3); }.detail-assistant:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 16px #8d709414; }.detail-assistant:disabled { opacity: .5; }.assistant-spark { font-size: 28px; color: #9780a8; }.detail-assistant strong, .detail-assistant small { display: block; }.detail-assistant strong { color: #62516f; font-size: 13px; font-weight: 500; }.detail-assistant small { margin-top: 5px; color: #81718e; font-size: 11px; line-height: 1.7; }.detail-assistant > i { margin-left: auto; color: #9884a7; font-size: 20px; font-style: normal; }
 .detail-endnote { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 24px 28px; color: #9287aa; }
 .detail-endnote > span { width: 28px; height: 1px; background: #e0dbe8; }
 .detail-endnote i { font-size: 18px; font-style: normal; }
@@ -193,5 +195,6 @@ onUnmounted(() => {
   .drawer-footer { padding: 14px 20px max(14px, env(safe-area-inset-bottom)); gap: 8px; }
   .drawer-footer button { padding-inline: 12px; font-size: 12px; }
   .detail-timestamp { padding-inline: 20px; }
+  .detail-assistant { width: calc(100% - 40px); margin-inline: 20px; }
 }
 </style>

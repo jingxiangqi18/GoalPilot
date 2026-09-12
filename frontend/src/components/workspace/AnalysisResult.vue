@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import ClarificationForm from './ClarificationForm.vue'
-import { formatDateTime, getDateParts } from '../../utils/dateTime'
+import DateStamp from './DateStamp.vue'
 
 const answers = defineModel('answers', { type: Array, required: true })
 const props = defineProps({
@@ -29,8 +29,6 @@ const snapshotLabel = computed(() => {
   const version = props.result.versionNumber ? `V${props.result.versionNumber}` : 'V1'
   return `${version} · 已保存的分析`
 })
-const snapshotTime = computed(() => formatDateTime(props.result.createdAt))
-const snapshotDate = computed(() => getDateParts(props.result.createdAt))
 </script>
 
 <template>
@@ -43,7 +41,7 @@ const snapshotDate = computed(() => getDateParts(props.result.createdAt))
         <p>先确认我们理解的是同一件事，再进入计划阶段。</p>
       </div>
       <div class="heading-actions">
-        <span class="snapshot-chip"><i></i>{{ snapshotLabel }}<small v-if="snapshotDate"><time :datetime="snapshotDate.datetime" :title="snapshotDate.fullLabel">{{ snapshotTime }}</time></small></span>
+        <span class="snapshot-chip"><span class="snapshot-version"><i></i>{{ snapshotLabel }}</span><DateStamp v-if="result.createdAt" :value="result.createdAt" label="" compact /></span>
         <button class="secondary-button" :disabled="!!activeRequest" @click="emit('reset')">分析新目标</button>
       </div>
     </header>
@@ -217,9 +215,8 @@ const snapshotDate = computed(() => getDateParts(props.result.createdAt))
 
 .secondary-button:hover { background: var(--canvas); }
 .heading-actions { display: flex; align-items: center; gap: 9px; }
-.snapshot-chip { min-height: 40px; padding: 0 12px; display: inline-flex; align-items: center; gap: 7px; color: var(--ink-600); background: var(--canvas-soft); border: 1px solid var(--line); border-radius: 9px; font-size: 10px; font-weight: 700; }
-.snapshot-chip i { width: 6px; height: 6px; background: var(--coral-500); border-radius: 50%; box-shadow: 0 0 0 4px var(--coral-100); }
-.snapshot-chip small { padding-left: 7px; color: var(--ink-400); border-left: 1px solid var(--line); font-size: 9px; font-weight: 600; }
+.snapshot-chip { min-width: 0; padding: 10px 13px; display: inline-flex; flex-direction: column; align-items: flex-start; gap: 8px; color: #6b627a; background: linear-gradient(110deg, #f4f1f9, #faf7fb); border: 0; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.snapshot-version { display: inline-flex; align-items: center; gap: 8px; }.snapshot-version i { width: 5px; height: 5px; background: #9486b2; border-radius: 50%; box-shadow: 0 0 0 3px #e9e2f3; }
 
 .panel {
   background: var(--paper);

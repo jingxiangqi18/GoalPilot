@@ -53,10 +53,16 @@ function confirm() {
   if (decision.value === 'approve') emit('approve')
   if (decision.value === 'reject') emit('reject')
 }
+
+function handleEscape(event) {
+  if (!decision.value) return
+  event.stopPropagation()
+  cancel()
+}
 </script>
 
 <template>
-  <footer class="plan-decision" :class="{ 'is-rejected': rejected, 'is-active': active, 'is-blocked': actionBlocked, 'is-reading': readOnly }" :aria-busy="busy" @keydown.esc="cancel">
+  <footer class="plan-decision" :class="{ 'is-rejected': rejected, 'is-active': active, 'is-blocked': actionBlocked, 'is-reading': readOnly }" :aria-busy="busy" @keydown.esc="handleEscape">
     <div class="decision-copy" role="status">
       <div class="decision-seal" aria-hidden="true">
         <svg viewBox="0 0 48 48" fill="none"><path d="M9 32C8 17 21 8 34 14s6 25-6 24S13 22 23 21s0 12-7 8" /><path v-if="active" class="seal-symbol" d="m20 23 5 5 9-11" /><path v-else class="seal-symbol" d="M27 15v8m-4-4h8" /></svg>

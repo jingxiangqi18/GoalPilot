@@ -5,8 +5,8 @@ import { getGoalDetails } from '../../api/goal'
 import { usePlanTasks } from '../../composables/usePlanTasks'
 import PlanRoadmap from './PlanRoadmap.vue'
 
-const props = defineProps({ goal: { type: Object, required: true } })
-const emit = defineEmits(['back', 'updated'])
+const props = defineProps({ goal: { type: Object, required: true }, embedded: Boolean })
+const emit = defineEmits(['back', 'updated', 'ask-assistant'])
 const plan = ref(null)
 const goalStatus = ref('')
 const { pendingTask, taskBusy, taskFeedback, taskUpdatesBlocked, updateTask, refreshTasks } = usePlanTasks(plan, goalStatus, snapshot => emit('updated', snapshot))
@@ -47,9 +47,9 @@ onBeforeUnmount(() => { requestNumber++ })
 </script>
 
 <template>
-  <section class="saved-plan-view" aria-label="已保存的正式计划">
+  <section class="saved-plan-view" :class="{ embedded }" aria-label="已保存的正式计划">
     <header class="saved-plan-nav">
-      <button type="button" class="back-button" @click="$emit('back')">← 返回目标库</button>
+      <button type="button" class="back-button" @click="$emit('back')">{{ embedded ? '← 回到对话' : '← 返回目标库' }}</button>
       <span class="source-goal" :title="goal.goalText">{{ goal.goalText }}</span>
       <button type="button" :disabled="loading || taskBusy" @click="plan ? refreshTasks() : loadPlan()">{{ loading ? '正在读取…' : '刷新计划' }}</button>
     </header>
@@ -60,12 +60,13 @@ onBeforeUnmount(() => { requestNumber++ })
       <p>{{ error }}</p>
       <div><button type="button" @click="$emit('back')">返回目标库</button><button type="button" @click="loadPlan">重新读取 ↗</button></div>
     </div>
-    <PlanRoadmap v-else-if="plan" :plan="plan" read-only :goal-status="goalStatus" :pending-task="pendingTask" :task-busy="taskBusy" :task-feedback="taskFeedback" :task-updates-blocked="taskUpdatesBlocked" @update-task="updateTask" @refresh-tasks="refreshTasks" @open-library="$emit('back')" @reset="$emit('back')" />
+    <PlanRoadmap v-else-if="plan" :plan="plan" read-only :goal-status="goalStatus" :pending-task="pendingTask" :task-busy="taskBusy" :task-feedback="taskFeedback" :task-updates-blocked="taskUpdatesBlocked" @update-task="updateTask" @refresh-tasks="refreshTasks" @open-library="$emit('back')" @reset="$emit('back')" @ask-assistant="$emit('ask-assistant')" />
   </section>
 </template>
 
 <style scoped>
 .saved-plan-view { display: grid; gap: 22px; }
+.embedded .source-goal { display: none; }.embedded .saved-plan-nav { padding-bottom: 8px; justify-content: space-between; }.embedded .plan-loading, .embedded .plan-unavailable { padding: 32px 18px; }
 .saved-plan-nav { display: flex; align-items: center; gap: 18px; padding: 0 0 16px; border-bottom: 1px solid #dedbe780; }
 .saved-plan-nav button, .plan-unavailable button { padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--paper); font-size: 12px; white-space: nowrap; }
 .saved-plan-nav button { color: #756b87; border: 0; border-radius: 8px; background: #ffffff90; }

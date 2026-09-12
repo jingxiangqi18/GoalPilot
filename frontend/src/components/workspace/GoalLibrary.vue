@@ -2,7 +2,8 @@
 import { computed, ref } from 'vue'
 import planeArtwork from '../../assets/goalpilot-plane-charm-v1.webp'
 import GoalStatusBadge from './GoalStatusBadge.vue'
-import { goalPresentation, goalDate, priorityLabel } from '../../utils/goalPresentation'
+import DateStamp from './DateStamp.vue'
+import { goalPresentation, priorityLabel } from '../../utils/goalPresentation'
 
 const props = defineProps({
   items: { type: Array, default: () => [] },
@@ -40,8 +41,8 @@ function resetFilters() { activeFilter.value = 'ALL'; search.value = '' }
     <header class="library-hero reveal-item">
       <div class="hero-copy">
         <span class="eyebrow"><i aria-hidden="true"></i>YOUR PERSONAL COLLECTION</span>
-        <h1>收好每个想法，<em>慢慢走向它。</em></h1>
-        <p>从一句想法，到一条行动路线。你的目标，都在这里。</p>
+        <h1>每一个目标，<em>都是一场持续的对话。</em></h1>
+        <p>打开一个目标，继续和 GoalPilot 梳理下一步；资料、计划与任务都在同一个空间。</p>
         <dl class="collection-stats" aria-label="目标概览">
           <div><dt>累计目标</dt><dd>{{ loading ? '—' : total }}<small>个</small></dd></div>
           <div><dt>本页待规划</dt><dd>{{ loading ? '—' : readyCount }}<small>个</small></dd></div>
@@ -87,10 +88,10 @@ function resetFilters() { activeFilter.value = 'ALL'; search.value = '' }
             <span class="card-chapter">{{ goalPresentation(goal.status).chapter }}</span>
             <strong>{{ goal.goalText }}</strong>
             <span class="card-hint">{{ goalPresentation(goal.status).hint }}</span>
-            <span class="card-meta"><span>记录于 {{ goalDate(goal.createdAt) }}</span><span v-if="goal.priority">{{ priorityLabel(goal.priority) }}</span></span>
+            <span class="card-meta"><DateStamp :value="goal.createdAt" label="记录于" compact :show-time="false" /><span v-if="goal.priority">{{ priorityLabel(goal.priority) }}</span></span>
           </button>
           <footer>
-            <button type="button" class="details-button" @click="emit('select', goal.id)">查看详情 <span aria-hidden="true">↗</span></button>
+            <button type="button" class="details-button" @click="emit('select', goal.id)">进入会话 <span aria-hidden="true">↗</span></button>
             <button v-if="goal.status === 'DRAFT'" type="button" class="continue-button" :disabled="busy" @click="emit('continue', goal)">继续分析 <span aria-hidden="true">→</span></button>
             <button v-else-if="goal.status === 'READY_TO_PLAN'" type="button" class="continue-button" :disabled="busy" @click="emit('generate-plan', goal)">{{ goal.id === availableDraftGoalId ? '查看计划草稿' : '生成计划' }} <span aria-hidden="true">→</span></button>
             <button v-else-if="['ACTIVE', 'COMPLETED', 'ARCHIVED'].includes(goal.status)" type="button" class="state-button" @click="emit('view-plan', goal)">查看正式计划 <span aria-hidden="true">→</span></button>
@@ -108,7 +109,7 @@ function resetFilters() { activeFilter.value = 'ALL'; search.value = '' }
         <button v-else type="button" :disabled="busy" @click="emit('new-goal')">写下新目标 →</button>
       </div>
       <footer class="collection-footer">
-        <span><i aria-hidden="true">✧</i> 每个目标，都有自己的时区。</span>
+        <span><i aria-hidden="true">✧</i> 每一步进展，都值得记录。</span>
         <div v-if="totalPages > 1" class="pagination">
           <span>第 {{ page }} / {{ totalPages }} 页</span>
           <button type="button" :disabled="page <= 1 || loading" @click="emit('page-change', page - 1)">← 上一页</button>
@@ -172,7 +173,7 @@ function resetFilters() { activeFilter.value = 'ALL'; search.value = '' }
 .filter-tabs button { min-height: 34px; padding: 6px 13px; color: #767282; background: transparent; border: 1px solid transparent; border-radius: 9px; font-size: 12px; font-weight: 400; }
 .filter-tabs button:hover { color: #63588c; background: #f7f5fb; }
 .filter-tabs button.active { color: #65578d; background: #eeebf7; border-color: #e0daed; font-weight: 500; box-shadow: inset 0 1px 0 white; }
-.filter-note { color: #87818e; font-size: 11px; white-space: nowrap; }
+.filter-note { color: #756c80; font-size: 12px; white-space: nowrap; }
 .goal-grid { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 18px; padding: 24px 28px; }
 .goal-grid.is-empty { padding-block: 0; }
 .goal-card { --card-accent: #626176; --card-tint: #f2f2f8; --card-border: #dfdfeb; position: relative; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border: 0; border-radius: 21px 21px 21px 8px; background: linear-gradient(120deg, var(--card-tint), #fdfcff); box-shadow: inset 0 1px 0 #fff, 0 5px 18px #4e43570a; transition: transform .25s var(--ease-out), box-shadow .25s; }
@@ -190,9 +191,9 @@ function resetFilters() { activeFilter.value = 'ALL'; search.value = '' }
 .card-decoration { position: absolute; top: 0; right: 0; width: 78px; height: 44px; color: var(--card-accent); opacity: .5; pointer-events: none; }
 .card-decoration i { position: absolute; right: 0; top: 0; width: 48px; height: 38px; border: 1px solid currentColor; border-radius: 50%; transform: rotate(-35deg); }
 .card-decoration i + i { right: 16px; top: 9px; }.card-decoration b { position: absolute; right: 8px; top: -7px; font-size: 22px; font-weight: 400; }
-.card-chapter { margin-top: 23px; color: var(--card-accent); font-size: 11px; letter-spacing: .06em; }
+.card-chapter { margin-top: 23px; color: var(--card-accent); font-size: 12px; letter-spacing: .035em; }
 .card-open > strong { display: -webkit-box; overflow: hidden; margin-top: 9px; color: #363542; font-size: 19px; font-weight: 500; line-height: 1.7; letter-spacing: .01em; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; text-wrap: pretty; }
-.card-hint { margin: 11px 0 0; color: #706979; font-size: 12px; line-height: 1.8; }
+.card-hint { margin: 11px 0 0; color: #706979; font-size: 13px; line-height: 1.85; }
 .card-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; width: 100%; margin-top: auto; padding-top: 23px; color: #746c7d; font-size: 11px; }
 .goal-card > footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 13px 20px; border-top: 0; background: linear-gradient(100deg, #ffffff95, #ffffff45); }
 .goal-card > footer button { min-height: 35px; padding: 7px 10px; border: 0; border-radius: 9px; background: transparent; font-size: 12px; font-weight: 500; white-space: nowrap; }
@@ -217,9 +218,9 @@ function resetFilters() { activeFilter.value = 'ALL'; search.value = '' }
 .empty-archive img { object-fit: contain; margin-bottom: 4px; }
 .empty-archive h3 { margin: 10px 0; font-size: 21px; font-weight: 500; }.empty-archive p { margin: 0; color: var(--ink-500); font-size: 13px; line-height: 1.7; }
 .empty-archive button { margin-top: 20px; padding: 10px 16px; color: #65578d; background: #f0ecf8; border: 1px solid #ddd5ed; border-radius: 10px; font-size: 12px; }
-.collection-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; padding: 15px 28px; background: #fbfafd; border-top: 1px solid #efecf4; color: #898191; font-size: 11px; }
-.collection-footer > span { display: flex; align-items: center; gap: 8px; }.collection-footer > span > i { font-size: 19px; font-style: normal; color: #a69abc; }
-.collection-footer > small { font-size: 10px; letter-spacing: .08em; }
+.collection-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 28px; background: linear-gradient(100deg, #f8f6fb, #fcfafc); border-top: 1px solid #efecf4; color: #796e84; font-size: 12px; line-height: 1.8; }
+.collection-footer > span { display: flex; align-items: center; gap: 9px; }.collection-footer > span > i { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 8px; background: #eee8f4; font-size: 17px; font-style: normal; color: #8a749f; }
+.collection-footer > small { font-size: 11px; letter-spacing: .035em; color: #82758d; }
 .pagination { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pagination button { padding: 8px 10px; color: #706781; border: 1px solid #e0daea; background: white; border-radius: 8px; font-size: 11px; }
 .pagination button:disabled { opacity: .4; }

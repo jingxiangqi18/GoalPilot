@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { taskStatusOptions, taskStatusLabel, taskProgress, replacePlanTask } from '../src/utils/planTasks.js'
+import { taskStatusOptions, taskStatusLabel, taskProgress, taskStatusCounts, replacePlanTask } from '../src/utils/planTasks.js'
 
 test('task controls match the backend enum without leaking technical labels', () => {
   assert.deepEqual(taskStatusOptions.map(option => option.value), ['TODO', 'IN_PROGRESS', 'DONE', 'SKIPPED'])
@@ -22,4 +22,12 @@ test('server task response replaces only its task, not the plan status or timest
   assert.equal(updated.stages[0].tasks[1], plan.stages[0].tasks[1])
   assert.equal(updated.status, 'ACTIVE')
   assert.equal(updated.updatedAt, plan.updatedAt)
+})
+
+test('status overview counts each task exactly once, including unknown states', () => {
+  assert.deepEqual(taskStatusCounts([]), { TODO: 0, IN_PROGRESS: 0, DONE: 0, SKIPPED: 0, UNKNOWN: 0 })
+  const tasks = ['TODO', 'IN_PROGRESS', 'DONE', 'SKIPPED', 'DONE', 'OTHER', undefined].map(status => ({ status }))
+  const counts = taskStatusCounts(tasks)
+  assert.deepEqual(counts, { TODO: 1, IN_PROGRESS: 1, DONE: 2, SKIPPED: 1, UNKNOWN: 2 })
+  assert.equal(Object.values(counts).reduce((sum, count) => sum + count), tasks.length)
 })

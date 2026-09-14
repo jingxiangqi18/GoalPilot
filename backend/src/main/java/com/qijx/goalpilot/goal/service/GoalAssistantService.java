@@ -114,7 +114,7 @@ public class GoalAssistantService {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "助手未返回有效回答");
         }
 
-        if(reply.isBlank()){
+        if(reply.isBlank()){ 
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "助手未返回有效回答");
         }
 

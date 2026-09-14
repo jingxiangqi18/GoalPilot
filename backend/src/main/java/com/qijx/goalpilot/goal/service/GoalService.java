@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.qijx.goalpilot.goal.domain.GoalPriority;
 import com.qijx.goalpilot.goal.domain.GoalReadiness;
 import com.qijx.goalpilot.goal.domain.GoalStatus;
 import com.qijx.goalpilot.goal.dto.GoalAnalysisResponse;
@@ -77,6 +78,35 @@ public class GoalService {
                 .orderByDesc(Goal::getCreatedAt)
                 .orderByDesc(Goal::getId)
             );
+
+        List<GoalResponse> items = resultPage.getRecords()
+            .stream()
+            .map(GoalResponse::from)
+            .toList();
+
+        return new GoalListResponse(
+            items,
+            resultPage.getCurrent(),
+            resultPage.getSize(),
+            resultPage.getTotal(),
+            resultPage.getPages()
+        );
+    }
+
+    public GoalListResponse findGoalsByPriority(Long userId, GoalPriority priority, long page, long size){
+        if(priority == null){
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "优先级不能为空");
+        }
+
+        Page<Goal> goalPage = new Page<>(page, size);
+
+        LambdaQueryWrapper<Goal> queryWrapper = new LambdaQueryWrapper<Goal>()
+            .eq(Goal::getUserId, userId)
+            .eq(Goal::getPriority, priority)
+            .orderByDesc(Goal::getCreatedAt)
+            .orderByDesc(Goal::getId);
+
+        Page<Goal> resultPage = goalMapper.selectPage(goalPage, queryWrapper);
 
         List<GoalResponse> items = resultPage.getRecords()
             .stream()

@@ -1,0 +1,144 @@
+/*
+ * Journey Station — cross-component presentation only.
+ * Layout/interaction remain owned by Vue components. Shared material, type and
+ * control treatments live here so tools and Agent surfaces use one visual system.
+ */
+
+/* Station signage and readable body type. Pixel lettering is never used for prose. */
+#app :is(.brand strong, .welcome-eyebrow, .collection-stats dd, .directory-number,
+  .progress-percent, .progress-topline strong, .calendar-leaf strong, .date-number) {
+  font-family: var(--pixel);
+  font-weight: 400;
+}
+#app :is(.eyebrow, .section-label, .recent-start header > div > span) {
+  font-family: var(--pixel);
+  letter-spacing: .02em;
+}
+#app :is(.topbar, .session-header) { background: #f9f8eddc; backdrop-filter: none; }
+#app .topbar { border-bottom: 1px solid #c2cfc5; }
+#app .space-name { color: var(--ink-600); }
+#app .space-name i { color: var(--warm-accent); }
+#app .sidebar button:focus-visible { outline-color: #eadba8; outline-offset: 2px; }
+#app .date-number { padding-top: 0; color: #f6efd4; background: var(--accent-deep); box-shadow: 2px 2px 0 #b9cbbb; font-size: 18px; }
+#app .date-number::before { display: none; }
+#app .date-copy strong { color: var(--ink); }
+#app .current-user i { color: #fff6dc; background: #738e78; border-radius: 2px; font-family: var(--pixel); font-style: normal; }
+#app .workspace-content:not(.session-content) { width: min(1620px, calc(100% - 72px)); padding-top: 26px; }
+#app .create-dashboard { width: min(1440px, 100%); margin-top: 0; }
+
+/* Ticket-like cards: hard shadows, perforations, restrained semantic colors. */
+#app .recent-start { margin-top: 26px; }
+#app .recent-goal { background: var(--paper); border: 1px solid var(--line-strong); box-shadow: 3px 3px 0 #b8c5b733; }
+#app .recent-goal:nth-child(2) { background: #f8f7ea; }
+#app .recent-goal:nth-child(3) { background: #eff3ed; }
+#app .recent-plan { border: 1px solid #cad8cb; background: #e6edde; color: #3f634f; }
+#app .recent-open h3 { color: var(--ink); font-weight: 550; }
+#app .recent-empty { background: #e8ecde; border: 1px dashed #acbfa8; }
+#app .library-hero { background: #e8edde; border: 1px solid #b9c8b8; padding-block: 28px; box-shadow: 4px 4px 0 #b8c5b72b; }
+#app .library-hero h1 em { color: var(--accent); }
+#app .library-hero .eyebrow { font-size: 10px; color: var(--accent); }
+#app .collection-art { width: 220px; height: 164px; }
+#app .collection-art img { width: 196px; height: 196px; left: 12px; top: -26px; transform: none; filter: none; image-rendering: pixelated; }
+#app .library-hero:hover .collection-art img { transform: none; }
+#app .collection-stats dd { font-size: 23px; }
+#app .new-goal-button { background: var(--accent-deep); box-shadow: 3px 3px 0 #aabeb4; }
+#app .archive-module { border-color: var(--line-strong); background: var(--paper); }
+#app .goal-card { background: var(--card-tint); box-shadow: 3px 3px 0 #b8c5b72b; }
+#app .goal-card.lilac { --card-accent: #756841; --card-tint: #f6f0de; --card-border: #d8ceb1; }
+#app .goal-card.blue { --card-accent: #3d6371; --card-tint: #eaf1ef; --card-border: #bfd0d0; }
+#app .goal-card.sage { --card-accent: #4a6c4c; --card-tint: #ecf0df; --card-border: #c7d3b8; }
+#app .goal-card::before { left: 0; width: 100%; height: 3px; background: var(--card-accent); opacity: .65; }
+#app .goal-card > footer { border-top: 1px dashed var(--card-border); background: #fffef866; }
+#app .card-decoration { width: 53px; height: 30px; top: 8px; background: repeating-linear-gradient(90deg, currentColor 0 2px, transparent 2px 5px, currentColor 5px 6px, transparent 6px 10px); opacity: .22; }
+#app .card-decoration > * { display: none; }
+#app .goal-glyph { border-radius: 2px; box-shadow: 2px 2px 0 var(--card-border); }
+#app .card-open > strong { font-size: 17px; }
+#app .filter-tabs button.active { color: var(--paper); background: var(--accent); border-color: var(--accent); box-shadow: 2px 2px 0 #aabeb4; }
+#app .goal-search:focus-within { border-color: var(--accent); box-shadow: 2px 2px 0 #8aa6a644; }
+#app .empty-archive img { image-rendering: pixelated; }
+#app .status-badge { border-radius: 2px; }
+#app .status-badge i { border-radius: 0; }
+
+/* Agent station: keep the conversation and composer visually dominant. */
+#app .session-header { border-bottom: 2px solid #c6d2c4; }
+#app .session-title > span { color: var(--accent); }
+#app .session-title h1 { color: var(--ink); font-weight: 600; }
+#app .session-tools button { border: 1px solid var(--line); background: #f1f2e8; }
+#app .session-tools button.selected { border-color: var(--accent); background: #dce7df; box-shadow: 2px 2px 0 #aabeb466; color: var(--accent-deep); }
+#app .session-body { background: #f0f0e7; }
+#app .session-panel { border-color: var(--line-strong); box-shadow: 3px 3px 0 #aabeb433; background: var(--paper); }
+#app .panel-heading { margin-bottom: 14px; background: #e6ebde; border-bottom: 1px solid #c0cebf; }
+#app .panel-glyph { background: #f5f5e8; border: 1px solid #c0cebf; box-shadow: none; }
+#app .panel-heading h2 { color: var(--ink); }
+#app .panel-heading > button { background: #f8f5e9; border: 1px solid #b6c7b5; }
+#app .goal-assistant-view { background: transparent; }
+#app .assistant-welcome { padding: 22px 0; }
+#app .welcome-signal { min-height: 122px; margin: 0 0 20px; gap: 12px; padding: 20px; border: 1px solid #bdccbd; background: #e5ebdb; box-shadow: 3px 3px 0 #b8c5b733; }
+#app .welcome-signal > .agent-signal { width: 40px; height: 40px; }
+#app .welcome-signal > div { padding-right: 120px; }
+#app .welcome-eyebrow { font-size: 11px; line-height: 1.8; color: var(--accent); }
+#app .agent-caption { line-height: 1.8; }
+#app .welcome-station { position: absolute; right: 5px; bottom: 0; width: 150px; height: 150px; object-fit: contain; image-rendering: pixelated; pointer-events: none; }
+#app .assistant-welcome h2 { font-size: clamp(23px, 1.8vw, 30px); font-weight: 600; }
+#app .welcome-context { border: 1px solid #d0d8c5; border-left: 3px solid #829873; background: #faf9ee; box-shadow: none; }
+#app .welcome-actions button { color: var(--accent); background: #e0e8e3; border-color: #b8cbc4; }
+#app .question-form { border-color: #aabeb4; }
+#app .question-form:focus-within { border-color: var(--accent); box-shadow: 4px 4px 0 #8aa6a64d; }
+#app .question-actions button:not(:disabled) { background: var(--accent-deep); box-shadow: 2px 2px 0 #afc3b2; }
+#app .asked-question { background: #e4eadb; border: 1px solid #c6d3bd; box-shadow: 2px 2px 0 #b8c5b729; }
+#app .task-handoff { background: #f3ecd8; border-color: #d7c8a0; }
+#app .chat-dock .suggestions button { background: #e6eade; border: 1px solid #c5d0c2; }
+#app .chat-disclaimer { color: #667366; }
+
+/* Manual workspace: stop numbers, segmented progress and precise checkbox rows. */
+#app .execution-progress { background: #e7ecdf; border: 1px solid #c2cfb8; padding: 16px 18px; }
+#app .progress-percent { color: var(--accent); font-size: 25px; }
+#app .progress-topline strong { color: var(--ink); font-size: 23px; }
+#app .execution-track { height: 10px; padding: 2px; border: 1px solid #afc0a9; border-radius: 0; background: #f7f7eb; }
+#app .execution-track i { border-radius: 0; background: repeating-linear-gradient(90deg, #67896a 0 9px, #67896a55 9px 12px); }
+#app .progress-legend i { border-radius: 0; }
+#app .stage-directory { background: transparent; }
+#app .stage-directory button { border: 1px solid var(--line); background: #f5f5eb; }
+#app .stage-directory .selected button { border-color: #8fa7a0; background: #e1e8df; box-shadow: 2px 2px 0 #bccabd66; }
+#app .directory-number { border: 1px solid #c6d2c2; background: #f4f4e8; font-size: 11px; }
+#app .selected .directory-number { color: #fff6db; background: var(--accent); border-color: var(--accent); box-shadow: 2px 2px 0 #9fb4a8; }
+#app .directory-copy strong { color: var(--ink-700); }
+#app .stage-card { border: 1px solid var(--line-strong); background: var(--paper); box-shadow: 3px 3px 0 #bccabd33; }
+#app .stage-heading { border-bottom: 1px dashed var(--line-strong); padding-bottom: 17px; }
+#app .stage-goal { background: #edf0e4; }
+#app .task-card { border-bottom-color: #d4ddce; }
+#app .task-card.is-expanded { background: #f0f3e8; }
+#app .task-check svg { stroke-linecap: square; stroke-linejoin: miter; }
+#app .task-check.done .check-box { fill: #54774f; stroke: #54774f; }
+#app .task-check.done path { stroke: white; }
+#app .task-status i { border-radius: 0; }
+#app .task-ask { color: var(--accent); }
+#app .task-actions button { border: 1px solid #c8d4c2; }
+#app .plan-summary { background: #eeeddf; border: 1px solid #d5d4bf; box-shadow: none; }
+#app .calendar-leaf { border: 1px solid #b0c0b4; border-radius: 2px; transform: none; background: #fffcef; box-shadow: 3px 3px 0 #c9d4c1; }
+#app .calendar-leaf small { color: #fff5d9; background: var(--accent); }
+#app .calendar-leaf strong { padding: 7px 0; font-size: 23px; }
+#app .date-stamp-copy > strong { color: var(--accent-deep); font-family: var(--pixel); font-size: 16px; }
+#app .date-inline-clock { border-radius: 2px; background: #e8ecdf; }
+
+@media(min-width: 1900px) {
+  #app .workspace-content:not(.session-content) { padding-top: 34px; }
+  #app .card-open > strong { font-size: 19px; }
+}
+@media(max-width: 800px) {
+  #app .workspace-content:not(.session-content) { width: calc(100% - 32px); padding-top: 20px; }
+}
+@media(max-width: 620px) {
+  #app .welcome-signal { min-height: 98px; padding: 13px; gap: 8px; }
+  #app .welcome-signal > .agent-signal { width: 28px; height: 28px; }
+  #app .welcome-signal > div { padding-right: 55px; }
+  #app .welcome-eyebrow { font-size: 9px; }
+  #app .welcome-station { width: 90px; height: 90px; right: -2px; }
+  #app .agent-caption { font-size: 10px; }
+  #app .library-hero { padding: 22px 20px; }
+  #app .collection-art { width: 95px; height: 100px; }
+  #app .collection-art img { width: 95px; height: 95px; top: 0; left: 0; }
+  #app .collection-stats dd { font-size: 20px; }
+  #app .progress-percent { font-size: 22px; }
+  #app .progress-topline strong { font-size: 21px; }
+}

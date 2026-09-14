@@ -1,9 +1,11 @@
 <script setup>
+import StudioBackdrop from './workspace/StudioBackdrop.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { analyzeGoal, clarifyGoal, createGoal, getGoalDetails, getGoals } from '../api/goal'
 import { approvePlan, generatePlan, rejectPlan } from '../api/plan'
 import WorkspaceSidebar from './workspace/WorkspaceSidebar.vue'
 import GoalComposer from './workspace/GoalComposer.vue'
+import RecentGoals from './workspace/RecentGoals.vue'
 import PlanRoadmap from './workspace/PlanRoadmap.vue'
 import GoalLibrary from './workspace/GoalLibrary.vue'
 import GoalSessionView from './workspace/GoalSessionView.vue'
@@ -461,6 +463,7 @@ onBeforeUnmount(() => {
   <div class="workspace-shell" :class="{ 'in-session': activeView === 'session' }">
     <WorkspaceSidebar :user="user" :active-view="activeView" :active-goal-id="activeView === 'session' ? sessionId : null" :items="goalItems" :goal-total="goalTotal" :busy="!!activeRequest" @navigate="navigate" @new-goal="startNewGoal" @open-goal="openGoalDetails" @logout="$emit('logout')" />
     <main class="workspace-main">
+      <StudioBackdrop />
       <header class="topbar">
         <nav class="mobile-nav" aria-label="移动端工作区导航"><button type="button" @click="startNewGoal">新建目标</button><button type="button" @click="navigate('library')">目标库</button></nav>
         <div class="topbar-context"><span class="space-name">GoalPilot <i>✧</i> {{ activeView === 'session' ? '目标会话' : activeView === 'library' ? '我的目标' : '让想法开始生长' }}</span></div>
@@ -469,7 +472,7 @@ onBeforeUnmount(() => {
       <div class="workspace-content" :class="{ 'session-content': activeView === 'session' }">
         <div v-if="activeView === 'create'" class="create-dashboard">
           <GoalComposer v-model="goalText" v-model:details="goalDetails" :loading="activeRequest === 'analysis'" :error-title="errorTitle" :error-message="errorMessage" :user-name="user.username" :current-goal-id="activeGoalId" :analyzed="!!result && goalSubmissionText === activeSavedText" @submit="submitGoal" @resume="openGoalDetails(activeGoalId)" @dismiss-error="errorMessage = ''" />
-          <div v-if="goalItems.length" class="recent-start"><span>从已有目标继续</span><button v-for="goal in goalItems.slice(0, 3)" :key="goal.id" type="button" @click="openGoalDetails(goal.id)"><i aria-hidden="true">↗</i><strong>{{ goal.goalText }}</strong></button></div>
+          <RecentGoals :items="goalItems" :loading="goalListLoading" :error="goalListError" :busy="!!activeRequest" @open="openGoalDetails" @plan="openSavedPlan" @library="navigate('library')" @retry="loadGoalPage(goalPage)" />
         </div>
         <template v-else-if="activeView === 'session'">
           <div v-if="detailLoading || !selectedGoal" class="session-loading">
@@ -482,7 +485,7 @@ onBeforeUnmount(() => {
               <PlanningConversation v-model:answers="clarificationAnswers" :goal="selectedGoal" :result="result" :plan="plan" :active-request="activeRequest" :error-message="errorMessage" :error-title="errorTitle" @analyze="submitGoal" @clarify="submitClarification" @generate-plan="createPlan" @open-plan="sessionView?.openPanel('plan')" @open-info="sessionView?.openPanel('info')" />
             </template>
             <template v-if="selectedGoal.id === activeGoalId && plan && !useSavedPlan" #plan>
-              <PlanRoadmap :plan="plan" :active-request="activeRequest" :error-title="errorTitle" :error-message="errorMessage" :action-blocked="planActionBlocked" :goal-status="planGoalStatus" :pending-task="pendingTask" :task-busy="taskBusy" :task-feedback="taskFeedback" :task-updates-blocked="taskUpdatesBlocked" @update-task="updateTask" @refresh-tasks="refreshTasks" @approve="approveCurrentPlan" @reject="rejectCurrentPlan" @regenerate="regenerateCurrentPlan" @open-library="reviewGoalState" @reset="resetAll" @dismiss-error="errorMessage = ''" @ask-assistant="sessionView?.openPanel('')" />
+              <PlanRoadmap :plan="plan" :active-request="activeRequest" :error-title="errorTitle" :error-message="errorMessage" :action-blocked="planActionBlocked" :goal-status="planGoalStatus" :pending-task="pendingTask" :task-busy="taskBusy" :task-feedback="taskFeedback" :task-updates-blocked="taskUpdatesBlocked" @update-task="updateTask" @refresh-tasks="refreshTasks" @approve="approveCurrentPlan" @reject="rejectCurrentPlan" @regenerate="regenerateCurrentPlan" @open-library="reviewGoalState" @reset="resetAll" @dismiss-error="errorMessage = ''" @ask-assistant="sessionView?.askAssistant($event)" />
             </template>
           </GoalSessionView>
         </template>
@@ -493,19 +496,20 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.workspace-shell { min-height: 100dvh; background: #f8f6fa; color: #51465b; }
-.workspace-main { min-height: 100dvh; margin-left: 248px; display: flex; flex-direction: column; background: radial-gradient(ellipse at 88% 0, #ede5f450, transparent 50%), #faf8fc; }
-.topbar { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 20px; height: 65px; padding: 0 28px; border-bottom: 1px solid #e9e2ee; background: #fcfafea8; }
-.space-name { color: #786782; font-size: 12px; }.space-name i { display: inline-block; margin: 0 10px; color: #7e638d; font-size: 17px; font-style: normal; }
-.topbar-right { display: flex; align-items: center; gap: 23px; }.topbar-date { display: inline-flex; align-items: center; gap: 9px; }.date-number { position: relative; width: 34px; height: 36px; display: grid; place-items: center; padding-top: 3px; border-radius: 8px 8px 10px 6px; color: #7b638d; background: linear-gradient(140deg, #f0e8f7, #f5eef7); box-shadow: inset 0 1px 0 #fff; font-family: var(--display); font-variant-numeric: tabular-nums; font-size: 20px; }.date-number::before { content: ''; position: absolute; top: 5px; width: 14px; height: 2px; border-radius: 2px; background: #c3aed1; }.date-copy strong, .date-copy small { display: block; }.date-copy strong { color: #7b6589; font-size: 10px; font-weight: 500; }.date-copy small { margin-top: 3px; color: #786682; font-size: 9px; }
-.current-user { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: #796684; font-size: 11px; }.current-user i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: #7d638f; background: #e9e0f1; font-size: 13px; font-style: normal; }
-.workspace-content { width: min(1800px, calc(100% - 64px)); margin-inline: auto; padding: 32px 0; flex: 1; min-height: 0; }
+.workspace-shell { min-height: 100dvh; background: var(--canvas); color: var(--ink); }
+.workspace-main { position: relative; isolation: isolate; min-height: 100dvh; margin-left: 248px; display: flex; flex-direction: column; background: var(--canvas); }
+.topbar { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 20px; height: 65px; padding: 0 28px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 66%, transparent); }
+.space-name { color: var(--ink-500); font-size: 12px; }.space-name i { display: inline-block; margin: 0 10px; color: var(--ink-500); font-size: 17px; font-style: normal; }
+.topbar-right { display: flex; align-items: center; gap: 23px; }.topbar-date { display: inline-flex; align-items: center; gap: 9px; }.date-number { position: relative; width: 34px; height: 36px; display: grid; place-items: center; padding-top: 3px; border-radius: var(--radius-sm); color: var(--ink-500); background: linear-gradient(140deg, var(--canvas-soft), var(--canvas-soft)); box-shadow: inset 0 1px 0 #fff; font-family: var(--display); font-variant-numeric: tabular-nums; font-size: 20px; }.date-number::before { content: ''; position: absolute; top: 5px; width: 14px; height: 2px; border-radius: 2px; background: var(--accent-pale); }.date-copy strong, .date-copy small { display: block; }.date-copy strong { color: var(--ink-500); font-size: 10px; font-weight: 500; }.date-copy small { margin-top: 3px; color: var(--ink-500); font-size: 9px; }
+.current-user { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--ink-500); font-size: 11px; }.current-user i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--ink-500); background: var(--canvas-soft); font-size: 13px; font-style: normal; }
+.workspace-content { position: relative; z-index: 1; width: min(1800px, calc(100% - 72px)); margin-inline: auto; padding: 32px 0; flex: 1; min-height: 0; }
 .workspace-shell.in-session, .in-session .workspace-main { height: 100dvh; min-height: 0; overflow: hidden; }.workspace-content.session-content { width: 100%; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
-.create-dashboard { width: min(920px, 100%); margin: clamp(30px, 6vh, 100px) auto 20px; }
-.recent-start { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 28px 0 0; }.recent-start > span { width: 100%; margin-bottom: 4px; color: #796584; font-size: 11px; }.recent-start button { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; padding: 11px 13px; border: 1px solid #e9e0f0; border-radius: 11px; background: #fff9; color: #7a6589; text-align: left; }.recent-start button i { font-size: 17px; font-style: normal; }.recent-start strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 400; }
-.session-loading { margin: auto; max-width: 550px; padding: 35px; text-align: center; }.session-loading > span { color: #7f618f; font-size: 45px; }.session-loading h1 { margin: 15px 0; font-size: 22px; font-weight: 500; }.session-loading p { font-size: 13px; color: #7b6487; line-height: 1.8; }.session-loading button { margin: 10px 5px; padding: 10px 15px; border: 0; border-radius: 10px; color: #7d638d; background: #eee4f4; font-size: 12px; }
+.create-dashboard { width: min(1440px, 100%); margin: clamp(15px, 3.5vh, 48px) auto 25px; animation: workspace-arrive .38s var(--ease-out) both; }
+.topbar { position: relative; z-index: 2; background: #f7f8f1c9; backdrop-filter: blur(12px); }.date-number { color: var(--accent-deep); background: #e4ebda; }.date-copy strong { color: var(--ink-700); font-size: 11px; }.current-user i { background: #eee4d3; color: #786044; border-radius: var(--radius-sm); }
+@keyframes workspace-arrive { from { opacity: 0; transform: translateY(8px); } }
+.session-loading { margin: auto; max-width: 550px; padding: 35px; text-align: center; }.session-loading > span { color: var(--ink-500); font-size: 45px; }.session-loading h1 { margin: 15px 0; font-size: 22px; font-weight: 500; }.session-loading p { font-size: 13px; color: var(--ink-500); line-height: 1.8; }.session-loading button { margin: 10px 5px; padding: 10px 15px; border: 0; border-radius: var(--radius-sm); color: var(--ink-500); background: var(--canvas-soft); font-size: 12px; }
 .mobile-nav { display: none; }
 @media(max-width: 1050px) { .workspace-main { margin-left: 200px; } }
-@media(max-width: 800px) { .workspace-main { margin-left: 0; }.topbar { height: 56px; padding-inline: 17px; }.topbar-context { display: none; }.mobile-nav { display: flex; gap: 8px; }.mobile-nav button { padding: 7px 11px; border: 0; border-radius: 9px; background: #eee6f4; color: #7d628e; font-size: 11px; }.current-user > span { display: none; }.topbar-right { gap: 10px; }.workspace-content { width: calc(100% - 32px); padding-top: 20px; }.create-dashboard { margin-top: 20px; } }
-@media(max-width: 480px) { .topbar-date { display: none; }.recent-start button { flex-basis: 100%; }.create-dashboard { margin-top: 10px; } }
+@media(max-width: 800px) { .workspace-main { margin-left: 0; }.topbar { height: 56px; padding-inline: 17px; }.topbar-context { display: none; }.mobile-nav { display: flex; gap: 8px; }.mobile-nav button { padding: 7px 11px; border: 0; border-radius: var(--radius-sm); background: var(--canvas-soft); color: var(--ink-500); font-size: 11px; }.current-user > span { display: none; }.topbar-right { gap: 10px; }.workspace-content { width: calc(100% - 32px); padding-top: 20px; }.create-dashboard { margin-top: 20px; } }
+@media(max-width: 480px) { .topbar-date { display: none; }.create-dashboard { margin-top: 10px; } }
 </style>

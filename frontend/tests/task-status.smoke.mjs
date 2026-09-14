@@ -51,7 +51,11 @@ const patchCount = () => requests.filter(request => request.method === 'PATCH').
 const taskCard = index => page.locator('.task-card').nth(index)
 const choice = (index, name) => taskCard(index).getByRole('button', { name, exact: true })
 const settle = () => page.waitForTimeout(450)
-async function stage(index) { await page.locator('.stage-directory button').nth(index).click(); await page.locator('.stage-title').filter({ hasText: plan.stages[index].title }).waitFor() }
+async function expand(index = 0) {
+  const heading = taskCard(index).locator('.task-heading button')
+  if (await heading.getAttribute('aria-expanded') !== 'true') await heading.click()
+}
+async function stage(index) { await page.locator('.stage-directory button').nth(index).click(); await page.locator('.stage-title').filter({ hasText: plan.stages[index].title }).waitFor(); await expand() }
 async function choose(index, name) {
   if (await taskCard(index).locator('.task-heading button').getAttribute('aria-expanded') !== 'true') await taskCard(index).locator('.task-heading button').click()
   await choice(index, name).click()
@@ -63,6 +67,7 @@ async function savedPage(goalText = goal.goalText) {
   await page.getByRole('button', { name: '刷新目标列表' }).click()
   await page.locator('.goal-card').filter({ hasText: goalText }).getByRole('button', { name: '查看正式计划' }).click()
   await page.locator('.saved-plan-view #plan').waitFor()
+  await expand()
 }
 async function reconcile() {
   await page.getByRole('button', { name: '重新读取状态' }).click()
@@ -79,6 +84,7 @@ try {
   await page.getByRole('button', { name: '确认并启用计划' }).click()
   await page.getByRole('button', { name: '确定启用正式版本' }).click()
   await page.locator('.approval-complete').waitFor()
+  await expand()
   await choice(0, '开始进行').waitFor()
   await assertProgress(0)
 
@@ -169,6 +175,7 @@ try {
   goal.status = 'ACTIVE'
   const activeRead = page.waitForResponse(res => res.url().endsWith('/active-plan'))
   await page.getByRole('button', { name: '刷新计划' }).click(); await activeRead
+  await expand()
   await choice(0, '设为待开始').waitFor()
 
   patchStatus = 404

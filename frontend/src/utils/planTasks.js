@@ -16,6 +16,15 @@ export function taskProgress(tasks) {
   return { total, done, skipped, percent: total ? Math.round(done / total * 100) : 0 }
 }
 
+export function taskStatusCounts(tasks) {
+  const counts = { TODO: 0, IN_PROGRESS: 0, DONE: 0, SKIPPED: 0, UNKNOWN: 0 }
+  for (const task of tasks) {
+    const key = taskStatusOptions.some(option => option.value === task.status) ? task.status : 'UNKNOWN'
+    counts[key]++
+  }
+  return counts
+}
+
 export function replacePlanTask(plan, task) {
   return {
     ...plan,

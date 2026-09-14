@@ -33,10 +33,10 @@ defineEmits(['analyze', 'generate', 'plan'])
 
 <style scoped>
 .goal-info-panel { padding: 9px 3px 24px; font-family: var(--text-cn); }
-.info-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }.info-heading > span { color: #786588; font-size: 12px; }
+.info-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }.info-heading > span { color: var(--ink-500); font-size: 12px; }
 h2 { margin: 18px 0 17px; font-size: 20px; line-height: 1.8; font-weight: 500; overflow-wrap: anywhere; white-space: pre-wrap; }
-.info-description { margin: -2px 0 20px; padding-left: 12px; border-left: 2px solid #d7c8e1; }.info-description p { margin: 5px 0; color: #786583; font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }
-dl { margin: 28px 0; }dl > div { padding: 17px 0; border-top: 1px solid #e7e1ed; }dt { margin-bottom: 8px; color: #75687d; font-size: 12px; }dd { margin: 0; color: #514857; font-size: 14px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
-.info-actions { display: grid; gap: 9px; }.info-actions button { display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 10px 15px; border: 0; border-radius: 12px; background: #ede7f3; color: #756082; font-size: 13px; }.info-actions button:hover:not(:disabled) { background: #e5dcef; }.info-actions button:disabled { opacity: .5; }
-.info-note { margin: 19px 0 26px; color: #766880; font-size: 12px; line-height: 1.8; }
+.info-description { margin: -2px 0 20px; padding-left: 12px; border-left: 2px solid var(--line); }.info-description p { margin: 5px 0; color: var(--ink-500); font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }
+dl { margin: 28px 0; }dl > div { padding: 17px 0; border-top: 1px solid var(--line); }dt { margin-bottom: 8px; color: var(--ink-700); font-size: 12px; }dd { margin: 0; color: var(--ink-700); font-size: 14px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.info-actions { display: grid; gap: 9px; }.info-actions button { display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 10px 15px; border: 0; border-radius: var(--radius-sm); background: var(--canvas-soft); color: var(--ink-700); font-size: 13px; }.info-actions button:hover:not(:disabled) { background: var(--accent-soft); }.info-actions button:disabled { opacity: .5; }
+.info-note { margin: 19px 0 26px; color: var(--ink-500); font-size: 12px; line-height: 1.8; }
 </style>

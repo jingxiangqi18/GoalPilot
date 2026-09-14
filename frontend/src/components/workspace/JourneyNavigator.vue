@@ -74,7 +74,7 @@ function selectStep(step) {
   gap: 18px;
   background: rgba(255,255,255,.88);
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--radius-sm);
   box-shadow: var(--surface-shadow);
   backdrop-filter: blur(18px) saturate(1.15);
 }
@@ -87,13 +87,13 @@ function selectStep(step) {
 .journey-context > small:first-of-type i { background: var(--coral-600); }
 
 .journey-nav ol { position: relative; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); list-style: none; }
-.journey-nav ol::before { content: ''; position: absolute; top: 0; bottom: 0; left: calc(var(--active-index) * 100% / 3); width: calc(100% / 3 - 8px); background: linear-gradient(125deg, #eae7f6, #f7eff5); border: 0; box-shadow: inset 0 1px 0 #fff, 0 3px 9px #6b608710; border-radius: 11px; transition: left .38s var(--ease-out); }
+.journey-nav ol::before { content: ''; position: absolute; top: 0; bottom: 0; left: calc(var(--active-index) * 100% / 3); width: calc(100% / 3 - 8px); background: linear-gradient(125deg, var(--canvas-soft), var(--canvas-soft)); border: 0; box-shadow: inset 0 1px 0 #fff, 0 3px 9px color-mix(in srgb, var(--shadow-color) 6%, transparent); border-radius: var(--radius-sm); transition: left .38s var(--ease-out); }
 .journey-nav li { position: relative; min-width: 0; }
 .journey-nav li:not(:last-child)::after { content: ''; position: absolute; z-index: 0; top: 27px; right: -1px; width: 18px; height: 1px; background: var(--line-strong); transform: translateX(50%); }
-.journey-nav button { position: relative; z-index: 1; width: calc(100% - 8px); min-height: 58px; padding: 7px 10px; display: grid; grid-template-columns: 35px minmax(0, 1fr) auto; align-items: center; gap: 9px; color: var(--ink-500); text-align: left; background: transparent; border: 1px solid transparent; border-radius: 11px; transition: color .2s ease, background .2s ease, border-color .2s ease, transform .2s ease; }
+.journey-nav button { position: relative; z-index: 1; width: calc(100% - 8px); min-height: 58px; padding: 7px 10px; display: grid; grid-template-columns: 35px minmax(0, 1fr) auto; align-items: center; gap: 9px; color: var(--ink-500); text-align: left; background: transparent; border: 1px solid transparent; border-radius: var(--radius-sm); transition: color .2s ease, background .2s ease, border-color .2s ease, transform .2s ease; }
 .journey-nav li:not(.locked) button:hover { color: var(--ink); background: var(--canvas-soft); border-color: var(--line); transform: translateY(-1px); }
 .journey-nav button:disabled { cursor: not-allowed; opacity: .44; }
-.step-number { width: 34px; height: 34px; display: grid; place-items: center; color: var(--ink-500); background: var(--canvas-soft); border: 1px solid var(--line-strong); border-radius: 10px; font-family: var(--display); font-size: 10px; font-weight: 700; transition: transform .24s ease, color .24s ease, background .24s ease; }
+.step-number { width: 34px; height: 34px; display: grid; place-items: center; color: var(--ink-500); background: var(--canvas-soft); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); font-family: var(--display); font-size: 10px; font-weight: 700; transition: transform .24s ease, color .24s ease, background .24s ease; }
 .step-number svg { width: 18px; }
 .step-copy { min-width: 0; }
 .step-copy small, .step-copy strong { display: block; }
@@ -115,11 +115,11 @@ function selectStep(step) {
 @container (max-width: 980px) { .step-hint { display: none; } }
 
 @media (max-width: 620px) {
-  .journey-nav { top: 74px; padding: 10px; border-radius: 14px; }
+  .journey-nav { top: 74px; padding: 10px; border-radius: var(--radius-sm); }
   .journey-context > span { display: none; }
   .journey-context > strong { font-size: 10px; }
   .journey-nav button { width: 100%; min-height: 48px; padding: 5px; grid-template-columns: 30px minmax(0, 1fr); gap: 6px; }
-  .step-number { width: 29px; height: 29px; border-radius: 8px; font-size: 9px; }
+  .step-number { width: 29px; height: 29px; border-radius: var(--radius-sm); font-size: 9px; }
   .step-copy small, .step-hint { display: none; }
   .step-copy strong { font-size: 10px; }
   .journey-nav li:not(:last-child)::after { display: none; }

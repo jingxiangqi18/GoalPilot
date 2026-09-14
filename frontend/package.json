@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test tests/*.test.mjs",
-    "test:ui": "node tests/workspace.smoke.mjs && node tests/plan-decisions.smoke.mjs && node tests/plan-reading.smoke.mjs && node tests/task-status.smoke.mjs && node tests/assistant.smoke.mjs"
+    "test:ui": "node tests/workspace.smoke.mjs && node tests/plan-decisions.smoke.mjs && node tests/plan-reading.smoke.mjs && node tests/task-status.smoke.mjs && node tests/assistant.smoke.mjs && node tests/task-list.smoke.mjs && node tests/agent-workspace.smoke.mjs && node tests/visual-theme.smoke.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-vue": "^6.0.1",

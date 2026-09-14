@@ -62,7 +62,7 @@ defineEmits(['retry', 'cancel', 'dismiss-error'])
   border-radius: 50%;
 }
 
-.launch-mark { position: relative; z-index: 1; width: 64px; height: 64px; display: grid; place-items: center; color: var(--paper); background: linear-gradient(145deg, var(--coral-500), var(--coral-700)); border-radius: 18px; box-shadow: 0 12px 28px rgba(81,89,141,.2); font-size: 16px; font-weight: 700; }
+.launch-mark { position: relative; z-index: 1; width: 64px; height: 64px; display: grid; place-items: center; color: var(--paper); background: linear-gradient(145deg, var(--coral-500), var(--coral-700)); border-radius: var(--radius-sm); box-shadow: 0 12px 28px rgba(81,89,141,.2); font-size: 16px; font-weight: 700; }
 .launch-mark i { position: absolute; right: 9px; bottom: 9px; width: 6px; height: 6px; background: var(--paper); border-radius: 50%; }
 .launch-copy { position: relative; z-index: 1; max-width: 850px; }
 .launch-copy > span { color: var(--coral-700); font-size: 10px; font-weight: 750; letter-spacing: .14em; }
@@ -79,7 +79,7 @@ defineEmits(['retry', 'cancel', 'dismiss-error'])
 .launch-error { justify-content: space-between; color: var(--danger); background: var(--danger-soft); border-color: var(--danger-line); }
 .launch-error strong { font-size: 13px; }
 .launch-error p { margin: 4px 0 0; font-size: 11px; }
-.retry-button { min-height: 38px; padding: 0 14px; flex: 0 0 auto; color: var(--paper); background: var(--danger); border: 1px solid var(--danger); border-radius: 999px; font-size: 11px; font-weight: 700; }
+.retry-button { min-height: 38px; padding: 0 14px; flex: 0 0 auto; color: var(--paper); background: var(--danger); border: 1px solid var(--danger); border-radius: var(--radius-sm); font-size: 11px; font-weight: 700; }
 
 .launch-panel footer { position: relative; z-index: 1; grid-column: 1 / -1; align-self: end; padding-top: 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); }
 .launch-panel footer > span { display: flex; align-items: center; gap: 8px; color: var(--ink-500); font-size: 10px; }
@@ -89,7 +89,7 @@ defineEmits(['retry', 'cancel', 'dismiss-error'])
 
 @media (max-width: 700px) {
   .launch-panel { min-height: 320px; padding: 27px; grid-template-columns: 50px minmax(0, 1fr); gap: 18px; }
-  .launch-mark { width: 50px; height: 50px; border-radius: 14px; font-size: 13px; }
+  .launch-mark { width: 50px; height: 50px; border-radius: var(--radius-sm); font-size: 13px; }
   .launch-state, .launch-error { grid-column: 1 / -1; }
 }
 

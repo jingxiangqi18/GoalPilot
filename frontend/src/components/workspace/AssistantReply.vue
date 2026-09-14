@@ -22,11 +22,11 @@ const blocks = computed(() => replyBlocks(props.text))
 .assistant-reply { color: var(--ink-700); font-family: var(--text-cn); font-size: 14px; line-height: 1.95; overflow-wrap: anywhere; }
 .assistant-reply > :first-child { margin-top: 0; }.assistant-reply > :last-child { margin-bottom: 0; }
 p { margin: 10px 0; white-space: pre-wrap; }
-h3 { margin: 22px 0 8px; color: #514761; font-size: 15px; font-weight: 600; }
+h3 { margin: 22px 0 8px; color: var(--ink-700); font-size: 15px; font-weight: 600; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { padding-left: 5px; margin: 7px 0; white-space: pre-wrap; }
-li::marker { color: #87759e; font-weight: 500; }
-strong { color: #514761; font-weight: 600; }
-code { padding: 2px 5px; border-radius: 4px; background: #eeebf5; color: #635574; font-size: .92em; }
-pre { margin: 14px 0; padding: 14px; border-radius: 10px; background: #f3f1f7; white-space: pre-wrap; overflow-wrap: anywhere; }pre code { padding: 0; background: none; }
+li::marker { color: var(--ink-500); font-weight: 500; }
+strong { color: var(--ink-700); font-weight: 600; }
+code { padding: 2px 5px; border-radius: 4px; background: var(--canvas-soft); color: var(--ink-700); font-size: .92em; }
+pre { margin: 14px 0; padding: 14px; border-radius: var(--radius-sm); background: var(--canvas-soft); white-space: pre-wrap; overflow-wrap: anywhere; }pre code { padding: 0; background: none; }
 </style>

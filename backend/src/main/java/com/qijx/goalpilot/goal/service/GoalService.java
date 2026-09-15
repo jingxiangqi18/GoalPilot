@@ -122,6 +122,35 @@ public class GoalService {
         );
     }
 
+    public GoalListResponse findGoalsByStatus(Long userId, GoalStatus status, long page, long size){
+        if(status == null){
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标状态不能为空");
+        }
+
+        Page<Goal> goalPage = new Page<>(page, size);
+
+        LambdaQueryWrapper<Goal> queryWrapper = new LambdaQueryWrapper<Goal>()
+            .eq(Goal::getUserId, userId)
+            .eq(Goal::getStatus, status)
+            .orderByDesc(Goal::getCreatedAt)
+            .orderByDesc(Goal::getId);
+
+        Page<Goal> resultPage = goalMapper.selectPage(goalPage, queryWrapper);
+
+        List<GoalResponse> items = resultPage.getRecords()
+            .stream()
+            .map(GoalResponse::from)
+            .toList();
+
+        return new GoalListResponse(
+            items,
+            resultPage.getCurrent(),
+            resultPage.getSize(),
+            resultPage.getTotal(),
+            resultPage.getPages()
+        );
+    }
+
     public GoalResponse findGoalDetails(Long userId, Long goalId){
         Goal goal = findOwnedGoal(userId, goalId);
 

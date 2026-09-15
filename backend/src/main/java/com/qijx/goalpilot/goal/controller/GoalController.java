@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.qijx.goalpilot.auth.security.CurrentUserId;
+import com.qijx.goalpilot.goal.domain.GoalStatus;
 import com.qijx.goalpilot.goal.dto.GoalCreateRequest;
 import com.qijx.goalpilot.goal.dto.GoalListResponse;
 import com.qijx.goalpilot.goal.dto.GoalResponse;
@@ -46,10 +47,15 @@ public class GoalController {
     @GetMapping
     public GoalListResponse findMyGoals(
         @CurrentUserId Long userId,
+        @RequestParam(required = false) GoalStatus status,
         @RequestParam(defaultValue = "1") @Min(1) long page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) long size
     ){
-        return goalService.findMyGoals(userId, page, size);
+        if(status == null){
+            return goalService.findMyGoals(userId, page, size);
+        }
+
+        return goalService.findGoalsByStatus(userId, status, size, page);
     }
 
     @GetMapping("/{goalId}")

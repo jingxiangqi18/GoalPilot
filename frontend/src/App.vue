@@ -2,11 +2,13 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import AuthView from './components/AuthView.vue'
 import WorkspaceView from './components/WorkspaceView.vue'
+import LogoutConfirm from './components/LogoutConfirm.vue'
 import { getCurrentUser, hasStoredSession, logoutUser } from './api/auth'
 
 const sessionState = ref('checking')
 const currentUser = ref(null)
 const authMessage = ref('')
+const logoutOpen = ref(false)
 
 async function restoreSession() {
   if (!hasStoredSession()) {
@@ -31,6 +33,11 @@ function handleAuthenticated(session) {
 }
 
 function handleLogout() {
+  logoutOpen.value = true
+}
+
+function confirmLogout() {
+  logoutOpen.value = false
   logoutUser()
   currentUser.value = null
   authMessage.value = ''
@@ -39,6 +46,7 @@ function handleLogout() {
 
 function handleUnauthorized() {
   if (sessionState.value !== 'authenticated') return
+  logoutOpen.value = false
   logoutUser()
   currentUser.value = null
   authMessage.value = '登录状态已过期，请重新登录后继续。'
@@ -80,4 +88,5 @@ onBeforeUnmount(() => {
       @logout="handleLogout"
     />
   </Transition>
+  <LogoutConfirm v-if="logoutOpen && sessionState === 'authenticated'" @cancel="logoutOpen = false" @confirm="confirmLogout" />
 </template>

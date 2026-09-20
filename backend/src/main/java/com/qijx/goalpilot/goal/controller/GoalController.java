@@ -2,6 +2,7 @@ package com.qijx.goalpilot.goal.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import com.qijx.goalpilot.goal.domain.GoalStatus;
 import com.qijx.goalpilot.goal.dto.GoalCreateRequest;
 import com.qijx.goalpilot.goal.dto.GoalListResponse;
 import com.qijx.goalpilot.goal.dto.GoalResponse;
+import com.qijx.goalpilot.goal.dto.GoalUpdateRequest;
 import com.qijx.goalpilot.goal.service.GoalService;
 import com.qijx.goalpilot.plan.dto.PlanSnapshotResponse;
 import com.qijx.goalpilot.plan.service.PlanQueryService;
@@ -55,7 +57,7 @@ public class GoalController {
             return goalService.findMyGoals(userId, page, size);
         }
 
-        return goalService.findGoalsByStatus(userId, status, size, page);
+        return goalService.findGoalsByStatus(userId, status, page, size);
     }
 
     @GetMapping("/{goalId}")
@@ -72,5 +74,14 @@ public class GoalController {
         @PathVariable @Positive Long goalId
     ){
         return planQueryService.findCurrentActivePlan(userId, goalId);
+    }
+
+    @PatchMapping("/{goalId}")
+    public GoalResponse updateGoal(
+        @CurrentUserId Long userId,
+        @PathVariable @Positive Long goalId,
+        @Valid @RequestBody GoalUpdateRequest request
+    ){
+        return goalService.updateGoal(userId, goalId, request);
     }
 }

@@ -55,7 +55,7 @@ async function expand(index = 0) {
   const heading = taskCard(index).locator('.task-heading button')
   if (await heading.getAttribute('aria-expanded') !== 'true') await heading.click()
 }
-async function stage(index) { await page.locator('.stage-directory button').nth(index).click(); await page.locator('.stage-title').filter({ hasText: plan.stages[index].title }).waitFor(); await expand() }
+async function stage(index) { await page.getByLabel('选择计划阶段').selectOption(String(index)); await page.locator('.stage-title').filter({ hasText: plan.stages[index].title }).waitFor(); await expand() }
 async function choose(index, name) {
   if (await taskCard(index).locator('.task-heading button').getAttribute('aria-expanded') !== 'true') await taskCard(index).locator('.task-heading button').click()
   await choice(index, name).click()

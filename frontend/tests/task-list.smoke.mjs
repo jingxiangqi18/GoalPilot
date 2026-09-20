@@ -62,7 +62,7 @@ try {
   await progress(4)
   for (const width of [2560, 1600, 1100, 800, 390, 320]) {
     await page.setViewportSize({ width, height: width > 1800 ? 1440 : 1000 }); await settle()
-    assert.ok(await page.locator('.stage-directory ol').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'No sideways stage scrolling at ' + width)
+    assert.ok(await page.locator('.stage-picker').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'No sideways stage picker scrolling at ' + width)
     if ([2560, 1600, 390].includes(width)) await capture('checklist-' + width)
   }
   await page.setViewportSize({ width: 1600, height: 1000 })
@@ -114,6 +114,7 @@ try {
   await page.getByRole('button', { name: '刷新计划', exact: true }).click()
   await page.locator('.task-status').filter({ hasText: '状态待确认' }).waitFor()
   assert.equal(await checks.first().isDisabled(), true)
+  await page.getByRole('button', { name: '↗ 路线总览', exact: true }).click()
   assert.match(await page.locator('.progress-legend').innerText(), /待确认\s*1/)
   // Home empty/error states, not fabricated progress cards.
   items = []; await page.goto((process.env.APP_URL || 'http://127.0.0.1:5184') + '/#/new')

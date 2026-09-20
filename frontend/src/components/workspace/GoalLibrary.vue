@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import collectionArtwork from '../../assets/goalpilot-pixel-courtyard-v1.webp'
 import GoalStatusBadge from './GoalStatusBadge.vue'
 import DateStamp from './DateStamp.vue'
@@ -12,11 +12,11 @@ const props = defineProps({
   page: { type: Number, default: 1 },
   totalPages: { type: Number, default: 0 },
   total: { type: Number, default: 0 },
+  statusFilter: { type: String, default: 'ALL' },
   busy: { type: Boolean, default: false },
   availableDraftGoalId: { type: Number, default: null },
 })
-const emit = defineEmits(['select', 'continue', 'generate-plan', 'view-plan', 'new-goal', 'refresh', 'page-change'])
-const activeFilter = ref('ALL')
+const emit = defineEmits(['select', 'continue', 'generate-plan', 'view-plan', 'new-goal', 'refresh', 'page-change', 'status-change'])
 const search = ref('')
 const filters = [
   { value: 'ALL', label: '全部' },
@@ -28,12 +28,13 @@ const filters = [
   { value: 'ARCHIVED', label: '已归档' },
 ]
 const visibleItems = computed(() => props.items.filter(item =>
-  (activeFilter.value === 'ALL' || item.status === activeFilter.value)
-  && String(item.goalText || '').toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase())
+  String(item.goalText || '').toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase())
 ))
+const filterLabel = computed(() => filters.find(filter => filter.value === props.statusFilter)?.label || '全部')
+watch([() => props.statusFilter, () => props.page], () => { search.value = '' })
 const activeCount = computed(() => props.items.filter(item => item.status === 'ACTIVE').length)
 const readyCount = computed(() => props.items.filter(item => item.status === 'READY_TO_PLAN').length)
-function resetFilters() { activeFilter.value = 'ALL'; search.value = '' }
+function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
 </script>
 
 <template>
@@ -44,9 +45,9 @@ function resetFilters() { activeFilter.value = 'ALL'; search.value = '' }
         <h1>每一个目标，<em>都有值得抵达的下一站。</em></h1>
         <p>打开一个目标，继续和 GoalPilot 梳理下一步；资料、计划与任务都在同一个空间。</p>
         <dl class="collection-stats" aria-label="目标概览">
-          <div><dt>累计目标</dt><dd>{{ loading ? '—' : total }}<small>个</small></dd></div>
-          <div><dt>本页待规划</dt><dd>{{ loading ? '—' : readyCount }}<small>个</small></dd></div>
-          <div><dt>本页进行中</dt><dd>{{ loading ? '—' : activeCount }}<small>个</small></dd></div>
+          <div><dt>{{ statusFilter === 'ALL' ? '累计目标' : filterLabel + '目标' }}</dt><dd>{{ loading || errorMessage ? '—' : total }}<small>个</small></dd></div>
+          <div><dt>本页待规划</dt><dd>{{ loading || errorMessage ? '—' : readyCount }}<small>个</small></dd></div>
+          <div><dt>本页进行中</dt><dd>{{ loading || errorMessage ? '—' : activeCount }}<small>个</small></dd></div>
         </dl>
       </div>
       <div class="hero-side">
@@ -59,17 +60,17 @@ function resetFilters() { activeFilter.value = 'ALL'; search.value = '' }
 
     <section class="archive-module reveal-item" :aria-busy="loading">
       <header class="archive-heading">
-        <div><span class="section-label">MY GOALS</span><h2>目标收藏 <span>{{ loading ? '正在读取' : '本页 ' + visibleItems.length + ' 个目标' }}</span></h2></div>
+        <div><span class="section-label">MY GOALS</span><h2>目标收藏 <span aria-live="polite">{{ loading ? '正在读取' : errorMessage ? '暂未读取' : filterLabel + ' · 本页 ' + visibleItems.length + ' 个' }}</span></h2></div>
         <div class="toolbar-actions">
           <label class="goal-search"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg><input v-model="search" type="search" aria-label="搜索本页目标" placeholder="搜索本页目标" /></label>
           <button class="refresh-button" type="button" :disabled="loading" aria-label="刷新目标列表" @click="emit('refresh')"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16 8a6.2 6.2 0 1 0 .1 3.2M16 4v4h-4" /></svg></button>
         </div>
       </header>
       <div class="archive-toolbar">
-        <div class="filter-tabs" role="group" aria-label="本页目标状态筛选">
-          <button v-for="filter in filters" :key="filter.value" type="button" :class="{ active: activeFilter === filter.value }" :aria-pressed="activeFilter === filter.value" @click="activeFilter = filter.value">{{ filter.label }}</button>
+        <div class="filter-tabs" role="group" aria-label="目标状态筛选">
+          <button v-for="filter in filters" :key="filter.value" type="button" :class="{ active: statusFilter === filter.value }" :aria-pressed="statusFilter === filter.value" @click="emit('status-change', filter.value)">{{ filter.label }}</button>
         </div>
-        <span class="filter-note">{{ totalPages > 1 ? '筛选与搜索仅作用于本页' : '按自己的节奏，一步步来。' }}</span>
+        <span class="filter-note">状态筛选覆盖全部目标 · 关键词仅搜索本页</span>
       </div>
 
       <div v-if="errorMessage" class="library-notice" role="alert"><span>!</span><div><strong>目标列表加载失败</strong><p>{{ errorMessage }}</p></div><button type="button" @click="emit('refresh')">重试</button></div>
@@ -100,15 +101,17 @@ function resetFilters() { activeFilter.value = 'ALL'; search.value = '' }
       <div v-if="!loading && !errorMessage && !visibleItems.length" class="empty-archive">
         <img :src="collectionArtwork" alt="" width="112" height="112" />
         <span class="section-label">{{ items.length ? 'KEEP EXPLORING' : 'YOUR NEXT CHAPTER' }}</span>
-        <h3>{{ items.length ? '暂时没有匹配的目标' : '让第一个想法，在这里落笔' }}</h3>
-        <p>{{ items.length ? '换一个关键词或状态，再找找看。' : '不必想得周全，一句自然的描述就够了。' }}</p>
-        <button v-if="search || activeFilter !== 'ALL'" type="button" @click="resetFilters">清除筛选，查看本页全部目标 →</button>
+        <h3>{{ search ? '本页没有匹配的目标' : statusFilter !== 'ALL' ? '暂时没有' + filterLabel + '的目标' : total ? '这一页暂时没有目标' : '让第一个想法，在这里落笔' }}</h3>
+        <p>{{ search ? '换一个关键词，或清除搜索后查看本页。' : statusFilter !== 'ALL' ? '可以切换状态，查看其他目标。' : total ? '返回第一页，查看最新的目标记录。' : '不必想得周全，一句自然的描述就够了。' }}</p>
+        <button v-if="search" type="button" @click="search = ''">清除搜索 →</button>
+        <button v-else-if="statusFilter !== 'ALL'" type="button" @click="resetFilters">清除筛选，查看全部目标 →</button>
+        <button v-else-if="page > 1" type="button" @click="emit('page-change', 1)">返回第一页 →</button>
         <button v-else type="button" :disabled="busy" @click="emit('new-goal')">写下新目标 →</button>
       </div>
       <footer class="collection-footer">
         <span><i aria-hidden="true">✧</i> 每一步进展，都值得记录。</span>
-        <div v-if="totalPages > 1" class="pagination">
-          <span>第 {{ page }} / {{ totalPages }} 页</span>
+        <div v-if="!errorMessage && totalPages > 1" class="pagination">
+          <span>第 {{ page }} 页 · 共 {{ totalPages }} 页</span>
           <button type="button" :disabled="page <= 1 || loading" @click="emit('page-change', page - 1)">← 上一页</button>
           <button type="button" :disabled="page >= totalPages || loading" @click="emit('page-change', page + 1)">下一页 →</button>
         </div>

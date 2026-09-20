@@ -1,5 +1,6 @@
 <script setup>
 import StudioBackdrop from './workspace/StudioBackdrop.vue'
+import AccountMenu from './workspace/AccountMenu.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { analyzeGoal, clarifyGoal, createGoal, getGoalDetails, getGoals } from '../api/goal'
 import { approvePlan, generatePlan, rejectPlan } from '../api/plan'
@@ -59,11 +60,16 @@ const goalTotal = ref(0)
 const goalTotalPages = ref(0)
 const goalListLoading = ref(false)
 const goalListError = ref('')
+const goalStatusFilter = ref('ALL')
+// Home and sidebar always show recent goals, independent of library filters/pages.
+const recentItems = ref([])
+const recentTotal = ref(0)
+const recentLoading = ref(false)
+const recentError = ref('')
 const detailLoading = ref(false)
 const selectedGoal = ref(null)
 const today = new Date()
 
-const userInitial = computed(() => props.user.username?.charAt(0).toUpperCase() || 'G')
 const todayDay = String(today.getDate()).padStart(2, '0')
 const todayMonth = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long' }).format(today)
 const todayWeekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(today)
@@ -134,23 +140,60 @@ function setRequestError(title, error) {
 }
 
 let goalListRequest = 0
+let recentListRequest = 0
+function setRecentGoals(data) {
+  recentItems.value = data.items
+  recentTotal.value = Number(data.total) || 0
+}
+async function loadRecentGoals() {
+  const request = ++recentListRequest
+  recentLoading.value = true
+  recentError.value = ''
+  try {
+    const data = await getGoals(1, 9)
+    if (request === recentListRequest) setRecentGoals(data)
+  } catch (error) {
+    if (request === recentListRequest) recentError.value = error.message || '最近目标加载失败。'
+  } finally {
+    if (request === recentListRequest) recentLoading.value = false
+  }
+}
 async function loadGoalPage(page = goalPage.value) {
   const request = ++goalListRequest
+  const status = goalStatusFilter.value
+  const recentRequest = status === 'ALL' && page === 1 ? ++recentListRequest : null
+  if (recentRequest) { recentLoading.value = true; recentError.value = '' }
+  goalPage.value = page
   goalListLoading.value = true
   goalListError.value = ''
   try {
-    const data = await getGoals(page, 9)
+    const data = await getGoals(page, 9, status)
+    if (recentRequest === recentListRequest) setRecentGoals(data)
     if (request !== goalListRequest) return
+    const lastPage = Math.max(1, Number(data?.totalPages) || 0)
+    if (page > lastPage) return loadGoalPage(lastPage)
     goalItems.value = Array.isArray(data?.items) ? data.items : []
     goalPage.value = Number(data?.page) || page
     goalTotal.value = Number(data?.total) || 0
     goalTotalPages.value = Number(data?.totalPages) || 0
   } catch (error) {
+    if (recentRequest === recentListRequest) recentError.value = error.message || '最近目标加载失败。'
     if (request !== goalListRequest) return
     goalListError.value = error instanceof Error ? error.message : '目标列表加载失败。'
   } finally {
+    if (recentRequest === recentListRequest) recentLoading.value = false
     if (request === goalListRequest) goalListLoading.value = false
   }
+}
+
+function changeGoalFilter(status) {
+  if (status === goalStatusFilter.value) return
+  goalStatusFilter.value = status
+  loadGoalPage(1)
+}
+function refreshGoalLists(page = goalPage.value) {
+  const refreshRecent = goalStatusFilter.value !== 'ALL' || page !== 1
+  return Promise.all([loadGoalPage(page), refreshRecent ? loadRecentGoals() : null])
 }
 
 async function submitGoal() {
@@ -171,14 +214,14 @@ async function submitGoal() {
       result.value = null
       plan.value = null
       clarificationAnswers.value = []
-      loadGoalPage(1)
+      refreshGoalLists(1)
     }
 
     result.value = normalizeResult(await analyzeGoal(activeGoalId.value))
     updateSelectedStatus(result.value.readiness === 'READY' ? 'READY_TO_PLAN' : 'NEEDS_CLARIFICATION')
     plan.value = null
     clarificationAnswers.value = result.value.clarificationQuestions.map((item) => item.answer || '')
-    await loadGoalPage(1)
+    await refreshGoalLists(1)
     scrollToTop()
   } catch (error) {
     setRequestError(activeGoalId.value ? '目标已保存，但分析没有完成' : '目标保存或分析没有完成', error)
@@ -213,7 +256,7 @@ async function submitClarification() {
     updateSelectedStatus(result.value.readiness === 'READY' ? 'READY_TO_PLAN' : 'NEEDS_CLARIFICATION')
     clarificationAnswers.value = result.value.clarificationQuestions.map((item) => item.answer || '')
     plan.value = null
-    await loadGoalPage(1)
+    await refreshGoalLists(1)
   } catch (error) {
     setRequestError('补充信息没有提交', error)
   } finally {
@@ -263,7 +306,7 @@ async function approveCurrentPlan() {
         status: approved?.goalStatus || 'ACTIVE',
       }
     }
-    await loadGoalPage(1)
+    await refreshGoalLists(1)
     scrollToTop()
   } catch (error) {
     handlePlanDecisionError('计划确认没有完成', error)
@@ -277,7 +320,7 @@ function handlePlanDecisionError(title, error) {
     planActionBlocked.value = true
     errorTitle.value = error.status === 409 ? '这版草稿的状态已变化' : '这版草稿已无法读取'
     errorMessage.value = '当前页面可能不是最新状态，已暂停此版本的后续操作。请到目标库查看最新状态；这里不会自动重新生成计划。'
-    loadGoalPage(goalPage.value)
+    refreshGoalLists(goalPage.value)
   } else setRequestError(title, error)
 }
 
@@ -289,7 +332,7 @@ async function rejectCurrentPlan() {
     await rejectPlan(plan.value.planId)
     // Rejection does not delete the goal or change its READY_TO_PLAN state.
     plan.value = { ...plan.value, status: 'REJECTED' }
-    await loadGoalPage(goalPage.value)
+    await refreshGoalLists(goalPage.value)
   } catch (error) {
     handlePlanDecisionError('这版草稿暂未放弃', error)
   } finally {
@@ -304,7 +347,7 @@ async function regenerateCurrentPlan() {
 
 function reviewGoalState() {
   navigate('library')
-  loadGoalPage(goalPage.value)
+  refreshGoalLists(goalPage.value)
 }
 
 function syncPlanSnapshot({ plan: latest, goalStatus }) {
@@ -315,6 +358,8 @@ function syncPlanSnapshot({ plan: latest, goalStatus }) {
     planGoalStatus.value = goalStatus
   }
   goalItems.value = goalItems.value.map(goal => goal.id === latest.goalId ? { ...goal, status: goalStatus } : goal)
+  recentItems.value = recentItems.value.map(goal => goal.id === latest.goalId ? { ...goal, status: goalStatus } : goal)
+  if (goalStatusFilter.value !== 'ALL' && goalItems.value.some(goal => goal.status !== goalStatusFilter.value)) loadGoalPage(goalPage.value)
   if (directPlanGoal.value?.id === latest.goalId) directPlanGoal.value = { ...directPlanGoal.value, status: goalStatus }
 }
 
@@ -454,6 +499,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   detailRequest++
   goalListRequest++
+  recentListRequest++
   window.removeEventListener('popstate', restoreRoute)
   window.removeEventListener('hashchange', restoreRoute)
 })
@@ -461,18 +507,18 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="workspace-shell" :class="{ 'in-session': activeView === 'session' }">
-    <WorkspaceSidebar :user="user" :active-view="activeView" :active-goal-id="activeView === 'session' ? sessionId : null" :items="goalItems" :goal-total="goalTotal" :busy="!!activeRequest" @navigate="navigate" @new-goal="startNewGoal" @open-goal="openGoalDetails" @logout="$emit('logout')" />
+    <WorkspaceSidebar :user="user" :active-view="activeView" :active-goal-id="activeView === 'session' ? sessionId : null" :items="recentItems" :goal-total="recentTotal" :busy="!!activeRequest" @navigate="navigate" @new-goal="startNewGoal" @open-goal="openGoalDetails" @logout="$emit('logout')" />
     <main class="workspace-main">
       <StudioBackdrop />
       <header class="topbar">
         <nav class="mobile-nav" aria-label="移动端工作区导航"><button type="button" @click="startNewGoal">新建目标</button><button type="button" @click="navigate('library')">目标库</button></nav>
         <div class="topbar-context"><span class="space-name">GoalPilot <i>✧</i> {{ activeView === 'session' ? '目标会话' : activeView === 'library' ? '我的目标' : '让想法开始生长' }}</span></div>
-        <div class="topbar-right"><time class="topbar-date" :datetime="todayDateValue"><span class="date-number">{{ todayDay }}</span><span class="date-copy"><strong>{{ todayWeekday }}</strong><small>{{ todayMonth }}</small></span></time><button class="current-user" type="button" aria-label="退出登录" @click="$emit('logout')"><i>{{ userInitial }}</i><span>{{ user.username }}</span></button></div>
+        <div class="topbar-right"><time class="topbar-date" :datetime="todayDateValue"><span class="date-number">{{ todayDay }}</span><span class="date-copy"><strong>{{ todayWeekday }}</strong><small>{{ todayMonth }}</small></span></time><AccountMenu :user="user" @logout="$emit('logout')" /></div>
       </header>
       <div class="workspace-content" :class="{ 'session-content': activeView === 'session' }">
         <div v-if="activeView === 'create'" class="create-dashboard">
           <GoalComposer v-model="goalText" v-model:details="goalDetails" :loading="activeRequest === 'analysis'" :error-title="errorTitle" :error-message="errorMessage" :user-name="user.username" :current-goal-id="activeGoalId" :analyzed="!!result && goalSubmissionText === activeSavedText" @submit="submitGoal" @resume="openGoalDetails(activeGoalId)" @dismiss-error="errorMessage = ''" />
-          <RecentGoals :items="goalItems" :loading="goalListLoading" :error="goalListError" :busy="!!activeRequest" @open="openGoalDetails" @plan="openSavedPlan" @library="navigate('library')" @retry="loadGoalPage(goalPage)" />
+          <RecentGoals :items="recentItems" :loading="recentLoading" :error="recentError" :busy="!!activeRequest" @open="openGoalDetails" @plan="openSavedPlan" @library="navigate('library')" @retry="loadRecentGoals" />
         </div>
         <template v-else-if="activeView === 'session'">
           <div v-if="detailLoading || !selectedGoal" class="session-loading">
@@ -489,7 +535,7 @@ onBeforeUnmount(() => {
             </template>
           </GoalSessionView>
         </template>
-        <GoalLibrary v-else :items="goalItems" :loading="goalListLoading" :error-message="goalListError" :page="goalPage" :total-pages="goalTotalPages" :total="goalTotal" :busy="!!activeRequest" :available-draft-goal-id="availableDraftGoalId" @select="openGoalDetails" @continue="continueGoal" @generate-plan="generateGoalPlan" @view-plan="openSavedPlan" @new-goal="startNewGoal" @refresh="loadGoalPage(goalPage)" @page-change="loadGoalPage" />
+        <GoalLibrary v-else :items="goalItems" :loading="goalListLoading" :error-message="goalListError" :page="goalPage" :total-pages="goalTotalPages" :total="goalTotal" :status-filter="goalStatusFilter" :busy="!!activeRequest" :available-draft-goal-id="availableDraftGoalId" @status-change="changeGoalFilter" @select="openGoalDetails" @continue="continueGoal" @generate-plan="generateGoalPlan" @view-plan="openSavedPlan" @new-goal="startNewGoal" @refresh="loadGoalPage(goalPage)" @page-change="loadGoalPage" />
       </div>
     </main>
   </div>

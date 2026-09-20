@@ -51,7 +51,11 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
     status = queryStatus
     data = status === 200 ? { ...plan, goalId: 13, versionNumber: 3, status: 'ACTIVE' } : { message: status === 404 ? '当前没有正式计划' : '正式计划状态异常' }
   }
-  else if (path === '/api/goals' && req.method() === 'GET') data = { items, page: 1, total: items.length, totalPages: 1 }
+  else if (path === '/api/goals' && req.method() === 'GET') {
+    const query = new URL(req.url()).searchParams
+    const matches = items.filter(item => !query.has('status') || item.status === query.get('status'))
+    data = { items: matches, page: Number(query.get('page')), size: Number(query.get('size')), total: matches.length, totalPages: matches.length ? 1 : 0 }
+  }
   else if (path === '/api/goals' && req.method() === 'POST') { savedGoal = { id: 42, ...req.postDataJSON(), status: 'DRAFT', createdAt: '2026-09-05T10:00:00' }; items.unshift(savedGoal); data = savedGoal }
   else if (path.endsWith('/analyze')) { await new Promise(resolve => setTimeout(resolve, 250)); data = analysis; if (savedGoal) savedGoal.status = 'NEEDS_CLARIFICATION' }
   else if (path.endsWith('/clarifications')) {
@@ -167,7 +171,7 @@ try {
   assert.equal(await page.locator('.goal-card').count(), 1)
   await page.getByRole('searchbox', { name: '搜索本页目标' }).fill('')
   await page.getByRole('button', { name: '已归档', exact: true }).click()
-  await page.getByRole('button', { name: '清除筛选，查看本页全部目标 →' }).click()
+  await page.getByRole('button', { name: '清除筛选，查看全部目标 →' }).click()
   await page.waitForFunction(() => document.querySelectorAll('.goal-card').length === 4)
   assert.equal(await page.locator('.goal-card').count(), 4)
   await snapshot('goal-library-1600')

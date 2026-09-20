@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.qijx.goalpilot.goal.domain.GoalPriority;
 import com.qijx.goalpilot.goal.domain.GoalReadiness;
@@ -23,6 +24,7 @@ import com.qijx.goalpilot.goal.dto.GoalClarificationRequest;
 import com.qijx.goalpilot.goal.dto.GoalCreateRequest;
 import com.qijx.goalpilot.goal.dto.GoalListResponse;
 import com.qijx.goalpilot.goal.dto.GoalResponse;
+import com.qijx.goalpilot.goal.dto.GoalUpdateRequest;
 import com.qijx.goalpilot.goal.entity.Goal;
 import com.qijx.goalpilot.goal.entity.GoalAnalysis;
 import com.qijx.goalpilot.goal.entity.GoalClarificationQuestion;
@@ -66,6 +68,62 @@ public class GoalService {
         }
 
         return GoalResponse.from(goal);
+    }
+
+    public GoalResponse updateGoal(Long userId, Long goalId, GoalUpdateRequest request){
+        Goal goal = findOwnedGoal(userId, goalId);
+
+        if(request.goalText() == null
+            && request.priority() == null
+            && request.deadline() == null
+        ){
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "至少提供一个更新字段");
+        }
+        
+        String normalizedGoalText = null;
+
+        if(request.goalText() != null){
+            normalizedGoalText = request.goalText().trim();
+
+            if(normalizedGoalText.isBlank()){
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标信息不能为空");
+            }
+
+            if(goal.getStatus() != GoalStatus.DRAFT){
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "只有草稿目标可以修改目标原文");
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        LambdaUpdateWrapper<Goal> updateWrapper = new LambdaUpdateWrapper<Goal>()
+            .eq(Goal::getId, goalId)
+            .eq(Goal::getUserId, userId);
+
+        if(normalizedGoalText != null){
+            updateWrapper.eq(Goal::getStatus, GoalStatus.DRAFT);
+            updateWrapper.set(Goal::getGoalText, normalizedGoalText);
+        }
+
+        if(request.priority() != null){
+            updateWrapper.set(Goal::getPriority, request.priority());
+        }
+
+        if(request.deadline() != null){
+            updateWrapper.set(Goal::getDeadline, request.deadline());
+        }
+
+        updateWrapper.set(Goal::getUpdatedAt, now);
+
+        int updatedRows = goalMapper.update(null, updateWrapper);
+
+        if(updatedRows != 1){
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "目标更新未成功，请刷新后重试");
+        }
+
+        Goal updatedGoal = findOwnedGoal(userId, goalId);
+
+        return GoalResponse.from(updatedGoal);
     }
 
     public GoalListResponse findMyGoals(Long userId, long page, long size){

@@ -4,8 +4,15 @@ export async function createGoal(goalText) {
   return postJson('/api/goals', { goalText })
 }
 
-export async function getGoals(page = 1, size = 9) {
-  return getJson(`/api/goals?page=${encodeURIComponent(page)}&size=${encodeURIComponent(size)}`)
+export async function getGoals(page = 1, size = 9, status = 'ALL') {
+  const query = new URLSearchParams({ page, size })
+  if (status !== 'ALL') query.set('status', status)
+  const data = await getJson(`/api/goals?${query}`)
+  if (!Array.isArray(data?.items)) throw new Error('目标列表信息不完整，请重新读取。')
+  if (status !== 'ALL' && (Number(data.page) !== page || Number(data.size) !== size || data.items.some(goal => goal.status !== status))) {
+    throw new Error('返回的筛选或分页信息与请求不一致，请刷新后重试。')
+  }
+  return data
 }
 
 export async function getGoalDetails(goalId) {

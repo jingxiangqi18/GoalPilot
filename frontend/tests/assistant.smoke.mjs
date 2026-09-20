@@ -80,6 +80,7 @@ try {
   await page.locator('#goal-input').fill('这是一段尚未提交的目标草稿')
   await library()
   await page.getByRole('button', { name: '查看正式计划', exact: true }).click()
+  await page.getByRole('button', { name: '↗ 路线总览', exact: true }).click()
   await page.getByRole('button', { name: /询问目标助手/ }).click()
   await input.waitFor()
   await settle()
@@ -229,12 +230,14 @@ try {
   assert.equal(await page.locator('.plan-assistant-button').count(), 0)
   await page.getByRole('button', { name: '确认并启用计划' }).click()
   await page.getByRole('button', { name: '确定启用正式版本' }).click()
+  await page.getByRole('button', { name: '↗ 路线总览', exact: true }).click()
   await page.locator('.plan-assistant-button').click()
   await input.waitFor()
   assert.match(await page.locator('.session-title').innerText(), new RegExp(otherGoal.goalText))
   await page.getByRole('button', { name: '计划与任务', exact: false }).first().click()
   await page.locator('#plan').waitFor()
   assert.match(await page.locator('.plan-status').innerText(), /已启用/)
+  await page.getByRole('button', { name: '↗ 路线总览', exact: true }).click()
   await page.locator('.plan-assistant-button').click()
 
   response = { status: 401, body: {} }

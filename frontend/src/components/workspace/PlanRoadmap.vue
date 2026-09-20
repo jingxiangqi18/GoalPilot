@@ -31,6 +31,8 @@ const snapshotTimeLabel = computed(() => props.plan.updatedAt ? '最近更新' :
 // Split only at sentence boundaries, preserving the original wording and punctuation.
 const summaryPoints = computed(() => String(props.plan.planSummary || '').trim().split(/(?<=[。！？])\s*|\n+/u).map(text => text.trim()).filter(Boolean))
 const summaryOpen = ref(false)
+const readingView = ref('tasks')
+const progress = computed(() => taskProgress(allTasks.value))
 const selectedStage = ref(0)
 const expandedTasks = ref({})
 const currentStage = computed(() => props.plan.stages[selectedStage.value])
@@ -42,6 +44,7 @@ watch([() => props.plan.planId, () => props.plan.stages.length], () => {
   selectedStage.value = 0
   expandedTasks.value = {}
   summaryOpen.value = false
+  readingView.value = 'tasks'
   focusAfterSwitch = false
 }, { immediate: true })
 
@@ -51,12 +54,18 @@ function openTasks(index) {
 
 function toggleTask(index) {
   const current = openTasks(selectedStage.value)
-  expandedTasks.value[selectedStage.value] = current.includes(index) ? current.filter(item => item !== index) : [...current, index]
+  expandedTasks.value[selectedStage.value] = current.includes(index) ? [] : [index]
 }
 
 async function selectStage(index, focusContent = false) {
-  if (index < 0 || index >= props.plan.stages.length || index === selectedStage.value) return
-  focusAfterSwitch = focusContent
+  if (index < 0 || index >= props.plan.stages.length) return
+  focusAfterSwitch = focusContent || readingView.value === 'overview'
+  readingView.value = 'tasks'
+  if (index === selectedStage.value) {
+    await nextTick()
+    focusStageHeading()
+    return
+  }
   selectedStage.value = index
   await nextTick()
   // Keep the selected mobile directory card in view without moving the page vertically.
@@ -91,8 +100,14 @@ function focusStageHeading() {
         <h2>{{ plan.planTitle }}</h2>
         <p>看清路线，一次专注一个阶段。</p>
       </div>
-      <DateStamp :value="plan.updatedAt || plan.createdAt" :label="snapshotTimeLabel" compact />
     </header>
+
+    <div class="plan-view-switch" role="group" aria-label="计划阅读视图">
+      <button type="button" :aria-pressed="readingView === 'tasks'" @click="readingView = 'tasks'">☷ 任务清单</button>
+      <button type="button" :aria-pressed="readingView === 'overview'" @click="readingView = 'overview'">↗ 路线总览</button>
+      <span v-if="plan.status === 'ACTIVE'">{{ progress.done }} 项完成 · 共 {{ progress.total }} 项</span>
+      <span v-else>{{ plan.stages.length }} 个阶段</span>
+    </div>
 
     <div v-if="taskFeedback" class="execution-notice" :class="taskFeedback.kind" :role="taskFeedback.kind === 'error' ? 'alert' : 'status'">
       <span aria-hidden="true">{{ taskFeedback.kind === 'success' ? '✓' : taskFeedback.kind === 'error' ? '!' : '↻' }}</span>
@@ -101,10 +116,11 @@ function focusStageHeading() {
     </div>
     <span v-if="pendingTask" class="sr-only" role="status">正在保存任务状态，请稍候。</span>
 
-    <TaskProgressOverview v-if="plan.status === 'ACTIVE'" :tasks="allTasks" :editable="editableTasks" />
+    <TaskProgressOverview v-if="plan.status === 'ACTIVE'" :compact="readingView === 'tasks'" :tasks="allTasks" :editable="editableTasks" />
+    <DateStamp v-if="readingView === 'overview'" :value="plan.updatedAt || plan.createdAt" :label="snapshotTimeLabel" compact />
 
     <div v-if="currentStage" class="roadmap-workspace">
-      <nav class="stage-directory" aria-label="计划阶段目录">
+      <nav v-show="readingView === 'overview'" class="stage-directory" aria-label="计划阶段目录" :inert="readingView !== 'overview'">
         <header><h3>阶段目录</h3><span>{{ plan.stages.length }} 个阶段 · {{ taskCount }} 项任务</span></header>
         <ol ref="stageDirectory">
           <li v-for="(stage, index) in plan.stages" :key="stage.stageId || index" :class="{ selected: selectedStage === index }">
@@ -118,7 +134,8 @@ function focusStageHeading() {
         </ol>
         <div class="directory-note" aria-hidden="true"><span>一步一步，让想法落地。</span><svg viewBox="0 0 76 26" fill="none"><path d="M3 22c14-1 16-20 29-17s-7 26-8 13S56 14 70 4m-9 0h9v9" /></svg></div>
       </nav>
-      <div :id="instanceId + '-stage'" ref="stageContent" class="stage-content">
+      <div v-show="readingView === 'tasks'" :id="instanceId + '-stage'" ref="stageContent" class="stage-content" :inert="readingView !== 'tasks'">
+        <label v-if="plan.stages.length > 1" class="stage-picker"><span>切换阶段</span><select aria-label="选择计划阶段" :value="selectedStage" @change="selectStage(Number($event.target.value))"><option v-for="(stage, index) in plan.stages" :key="stage.stageId || index" :value="index">第 {{ index + 1 }} 阶段 · {{ stage.title }}</option></select></label>
         <Transition name="stage-focus" mode="out-in" @after-enter="focusStageHeading">
           <PlanStageCard :key="selectedStage" :stage="currentStage" :index="selectedStage" :expanded-tasks="openTasks(selectedStage)" :editable="editableTasks" :can-ask="plan.status === 'ACTIVE'" :pending-task="pendingTask" :busy="taskBusy || !!activeRequest" :updates-blocked="taskUpdatesBlocked || actionBlocked" @ask-task="$emit('ask-assistant', $event)" @toggle-task="toggleTask" @update-task="$emit('update-task', $event)" />
         </Transition>
@@ -131,7 +148,7 @@ function focusStageHeading() {
     </div>
     <p v-else class="empty-stages">这份计划暂未包含阶段安排。</p>
 
-    <article class="plan-summary" aria-label="整体思路">
+    <article v-show="readingView === 'overview'" class="plan-summary" aria-label="整体思路" :inert="readingView !== 'overview'">
       <span class="summary-mark" aria-hidden="true"><svg viewBox="0 0 28 28" fill="none"><path d="M7 22V8a3 3 0 0 1 3-3h11v17H10a3 3 0 0 0 0 6m-3-6a3 3 0 0 1 3-3h11M11 9h6m-6 4h4" /></svg></span>
       <div class="summary-content">
         <h3>整体思路</h3>
@@ -168,6 +185,20 @@ function focusStageHeading() {
 </template>
 
 <style scoped>
+.plan-view-switch { display: flex; align-items: center; gap: 5px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.plan-view-switch button { padding: 9px 12px; border: 1px solid transparent; background: transparent; color: var(--ink-500); font-size: 12px; }
+.plan-view-switch button[aria-pressed="true"] { background: var(--accent-deep); color: var(--paper); border-color: var(--accent-deep); box-shadow: 2px 2px 0 var(--line); }
+.plan-view-switch > span { margin-left: auto; font-size: 11px; color: var(--ink-500); }
+.stage-picker { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; color: var(--ink-500); font-size: 11px; }
+.stage-picker > span { flex-shrink: 0; }
+.stage-picker select { min-width: 0; width: 100%; padding: 10px 30px 10px 12px; border: 1px solid var(--line); border-radius: 2px; background: var(--paper); color: var(--ink); font-size: 12px; text-overflow: ellipsis; }
+.plan-module .roadmap-workspace { grid-template-columns: minmax(0, 1fr); }
+.plan-module .stage-directory ol { grid-template-columns: minmax(0, 1fr); }
+.plan-module .stage-directory li::after, .plan-module .directory-note { display: none; }
+.plan-module .stage-directory button { padding: 13px; }
+.plan-module .directory-progress { display: none; }
+.plan-module .execution-notice.success { padding: 5px 9px; background: transparent; font-size: 11px; }
+@container plan (max-width: 400px) { .plan-view-switch { flex-wrap: wrap; }.plan-view-switch > span { width: 100%; margin: 6px 0 0; }.stage-picker { gap: 7px; } }
 .plan-module { container: plan / inline-size; scroll-margin-top: 24px; display: grid; gap: 17px; font-family: var(--text-cn); }
 .plan-assistant-button { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 15px; padding: 8px 12px; color: var(--ink-700); background: linear-gradient(110deg, var(--canvas-soft), var(--canvas-soft)); border: 0; border-radius: var(--radius-sm); font-size: 12px; }.plan-assistant-button > span { font-size: 17px; }.plan-assistant-button small { padding-left: 5px; color: var(--ink-500); font-size: 10px; }.plan-assistant-button:hover:not(:disabled) { transform: translateX(3px); box-shadow: 0 3px 10px color-mix(in srgb, var(--shadow-color) 8%, transparent); }.plan-assistant-button:disabled { opacity: .5; }
 .module-heading { display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 7px 5px 0; }

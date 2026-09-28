@@ -5,6 +5,7 @@ import PlanStageCard from './PlanStageCard.vue'
 import PlanDecisionPanel from './PlanDecisionPanel.vue'
 import TaskProgressOverview from './TaskProgressOverview.vue'
 import { taskProgress } from '../../utils/planTasks'
+import PixelSelect from '../ui/PixelSelect.vue'
 
 const props = defineProps({
   plan: { type: Object, required: true },
@@ -36,6 +37,12 @@ const progress = computed(() => taskProgress(allTasks.value))
 const selectedStage = ref(0)
 const expandedTasks = ref({})
 const currentStage = computed(() => props.plan.stages[selectedStage.value])
+const stageOptions = computed(() => props.plan.stages.map((stage, index) => ({
+  value: index,
+  label: stage.title,
+  badge: String(index + 1).padStart(2, '0'),
+  description: `${stage.timeRange || '时间待安排'} · ${props.plan.status === 'ACTIVE' ? `${taskProgress(stage.tasks).done} 已完成 · ` : ''}${stage.tasks.length} 项任务`,
+})))
 const stageDirectory = ref(null)
 const stageContent = ref(null)
 let focusAfterSwitch = false
@@ -135,7 +142,7 @@ function focusStageHeading() {
         <div class="directory-note" aria-hidden="true"><span>一步一步，让想法落地。</span><svg viewBox="0 0 76 26" fill="none"><path d="M3 22c14-1 16-20 29-17s-7 26-8 13S56 14 70 4m-9 0h9v9" /></svg></div>
       </nav>
       <div v-show="readingView === 'tasks'" :id="instanceId + '-stage'" ref="stageContent" class="stage-content" :inert="readingView !== 'tasks'">
-        <label v-if="plan.stages.length > 1" class="stage-picker"><span>切换阶段</span><select aria-label="选择计划阶段" :value="selectedStage" @change="selectStage(Number($event.target.value))"><option v-for="(stage, index) in plan.stages" :key="stage.stageId || index" :value="index">第 {{ index + 1 }} 阶段 · {{ stage.title }}</option></select></label>
+        <div v-if="plan.stages.length > 1" class="stage-picker"><span>切换阶段</span><PixelSelect label="选择计划阶段" :model-value="selectedStage" :options="stageOptions" :active="readingView === 'tasks'" @update:model-value="selectStage" /></div>
         <Transition name="stage-focus" mode="out-in" @after-enter="focusStageHeading">
           <PlanStageCard :key="selectedStage" :stage="currentStage" :index="selectedStage" :expanded-tasks="openTasks(selectedStage)" :editable="editableTasks" :can-ask="plan.status === 'ACTIVE'" :pending-task="pendingTask" :busy="taskBusy || !!activeRequest" :updates-blocked="taskUpdatesBlocked || actionBlocked" @ask-task="$emit('ask-assistant', $event)" @toggle-task="toggleTask" @update-task="$emit('update-task', $event)" />
         </Transition>
@@ -191,7 +198,6 @@ function focusStageHeading() {
 .plan-view-switch > span { margin-left: auto; font-size: 11px; color: var(--ink-500); }
 .stage-picker { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; color: var(--ink-500); font-size: 11px; }
 .stage-picker > span { flex-shrink: 0; }
-.stage-picker select { min-width: 0; width: 100%; padding: 10px 30px 10px 12px; border: 1px solid var(--line); border-radius: 2px; background: var(--paper); color: var(--ink); font-size: 12px; text-overflow: ellipsis; }
 .plan-module .roadmap-workspace { grid-template-columns: minmax(0, 1fr); }
 .plan-module .stage-directory ol { grid-template-columns: minmax(0, 1fr); }
 .plan-module .stage-directory li::after, .plan-module .directory-note { display: none; }

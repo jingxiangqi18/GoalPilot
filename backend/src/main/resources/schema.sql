@@ -135,3 +135,62 @@ CREATE TABLE IF NOT EXISTS plan_tasks(
     CONSTRAINT uk_plan_tasks_stage_order
         UNIQUE (plan_stage_id, sort_order)
 );
+
+CREATE TABLE IF NOT EXISTS task_lists(
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    user_id BIGINT NOT NULL,
+
+    name VARCHAR(100) NOT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_users_task_lists
+        FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS tasks(
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+    user_id BIGINT NOT NULL,
+
+    task_list_id BIGINT,
+
+    goal_id BIGINT,
+
+    plan_task_id BIGINT,
+
+    title VARCHAR(300) NOT NULL,
+
+    description TEXT,
+
+    completion_criteria TEXT,
+
+    status VARCHAR(20) NOT NULL DEFAULT 'TODO',
+
+    priority VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
+
+    deadline DATETIME,
+
+    completed_at DATETIME,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_tasks_user
+        FOREIGN KEY (user_id) REFERENCES users(id),
+
+    CONSTRAINT fk_tasks_task_list
+        FOREIGN KEY (task_list_id) REFERENCES task_lists(id),
+
+    CONSTRAINT fk_tasks_goal
+        FOREIGN KEY (goal_id) REFERENCES goals(id),
+
+    CONSTRAINT fk_tasks_plan_task
+        FOREIGN KEY (plan_task_id) REFERENCES plan_tasks(id)
+);

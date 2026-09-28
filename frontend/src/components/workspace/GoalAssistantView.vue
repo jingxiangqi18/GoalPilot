@@ -9,8 +9,9 @@ import courtyardArtwork from '../../assets/goalpilot-pixel-courtyard-v1.webp'
 const props = defineProps({
   goal: { type: Object, required: true },
   session: { type: Object, default: () => ({ question: '', entries: [] }) },
+  actionBusy: Boolean,
 })
-defineEmits(['open-library', 'open-plan', 'analyze', 'generate'])
+defineEmits(['open-library', 'open-plan', 'analyze', 'generate', 'new-task'])
 
 const question = computed({ get: () => props.session.question, set: value => { props.session.question = value } })
 const entries = computed(() => props.session.entries)
@@ -117,8 +118,8 @@ onBeforeUnmount(() => { requestNumber++ })
           <div class="welcome-context"><span>正在关注的目标</span><p class="welcome-goal">{{ goal.goalText }}</p></div>
           <p>聊聊下一步怎么做，或一起确认任务的完成标准。<br />需要直接记录进展时，打开右侧的任务清单。</p>
           <div class="welcome-actions">
-            <button v-if="['DRAFT', 'NEEDS_CLARIFICATION'].includes(goal.status)" type="button" @click="$emit('analyze')">✦ {{ goal.status === 'DRAFT' ? '开始分析目标' : '重新分析并继续澄清' }} <small>AI 分析流程</small></button>
-            <button v-else-if="goal.status === 'READY_TO_PLAN'" type="button" @click="$emit('generate')">↗ 生成计划草稿 <small>手动发起</small></button>
+            <button v-if="['DRAFT', 'NEEDS_CLARIFICATION'].includes(goal.status)" type="button" :disabled="actionBusy" @click="$emit('analyze')">✦ {{ goal.status === 'DRAFT' ? '开始分析目标' : '重新分析并继续澄清' }} <small>AI 分析流程</small></button>
+            <button v-else-if="goal.status === 'READY_TO_PLAN'" type="button" :disabled="actionBusy" @click="$emit('generate')">↗ 生成计划草稿 <small>手动发起</small></button>
             <button v-else type="button" @click="$emit('open-plan')">☷ 打开计划与任务 <small>手动操作</small></button>
           </div>
         </div>
@@ -135,6 +136,7 @@ onBeforeUnmount(() => { requestNumber++ })
     </div>
     <span class="sr-only" role="status" aria-live="polite">{{ !busy && entries.length ? `已收到第 ${entries.length} 条回答，可在本次问答记录中查看。` : '' }}</span>
     <div class="chat-dock">
+      <div class="chat-manual-tools"><span>需要直接操作？</span><button type="button" @click="$emit('new-task')">＋ 记一件事</button><button type="button" @click="$emit('open-plan')">☷ 查看清单</button></div>
       <div v-if="!question.trim() && !busy && !unavailable" class="suggestions" aria-label="提问灵感">
         <button v-for="suggestion in suggestions" :key="suggestion.title" type="button" @click="chooseSuggestion(suggestion.message)"><span aria-hidden="true">{{ suggestion.icon }}</span>{{ suggestion.title }}</button>
       </div>
@@ -152,6 +154,7 @@ onBeforeUnmount(() => { requestNumber++ })
 
 <style scoped>
 .goal-assistant-view { height: 100%; min-height: 0; display: flex; flex-direction: column; font-family: var(--text-cn); background: radial-gradient(ellipse at 55% 28%, color-mix(in srgb, var(--canvas-soft) 24%, transparent), transparent 66%); }
+.chat-manual-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }.chat-manual-tools > span { margin-right: auto; color: var(--ink-500); font-size: 10px; }.chat-manual-tools button { padding: 6px 9px; border: 1px solid var(--line); border-radius: 2px; color: var(--accent); background: var(--paper); font-size: 11px; }.chat-manual-tools button:hover { background: var(--canvas-soft); }
 .conversation { flex: 1; min-height: 0; overflow-y: auto; padding: 28px 28px 16px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; overscroll-behavior: contain; }
 .chat-column { width: min(100%, 800px); min-height: 100%; margin: 0 auto; display: flex; flex-direction: column; justify-content: flex-start; }
 .assistant-welcome { margin-block: auto; padding: 18px 0 30px; }

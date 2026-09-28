@@ -13,9 +13,20 @@ import GoalSessionView from './workspace/GoalSessionView.vue'
 import PlanningConversation from './workspace/PlanningConversation.vue'
 import { buildGoalText } from '../utils/goalDraft'
 import { usePlanTasks } from '../composables/usePlanTasks'
+import { useTaskInbox } from '../composables/useTaskInbox'
+import TaskDesk from './workspace/TaskDesk.vue'
 
 const props = defineProps({ user: { type: Object, required: true } })
 defineEmits(['logout'])
+const { tasks: inboxTasks, stateFor: taskStateFor, submit: submitTask } = useTaskInbox()
+const taskDesk = ref(null)
+
+async function askFromTaskDesk({ goalId, context }) {
+  await openGoalDetails(goalId)
+  if (activeView.value !== 'session' || selectedGoal.value?.id !== goalId) return
+  await nextTick()
+  sessionView.value?.askAssistant(context)
+}
 
 const activeView = ref('create')
 const goalText = ref('')
@@ -27,7 +38,7 @@ const useSavedPlan = ref(false)
 const sessionError = ref('')
 const chatSessions = ref({})
 const sessionId = ref(null)
-const planningMode = computed(() => selectedGoal.value?.id === activeGoalId.value && plan.value?.status !== 'ACTIVE' && Boolean(result.value || plan.value || directPlanGoal.value || activeRequest.value))
+const planningMode = computed(() => selectedGoal.value?.id === activeGoalId.value && plan.value?.status !== 'ACTIVE' && Boolean(result.value || plan.value || directPlanGoal.value || errorMessage.value || (activeRequest.value && activeRequest.value !== 'goal-update')))
 function sessionFor(id) {
   return chatSessions.value[id] ??= { question: '', entries: [] }
 }
@@ -210,7 +221,7 @@ async function submitGoal() {
       const savedGoal = await createGoal(normalized)
       activeGoalId.value = savedGoal.id
       activeSavedText.value = savedGoal.goalText || normalized
-      if (activeView.value === 'create') showSession(savedGoal)
+      if (activeView.value === 'create' || activeView.value === 'tasks') showSession(savedGoal)
       result.value = null
       plan.value = null
       clarificationAnswers.value = []
@@ -363,6 +374,34 @@ function syncPlanSnapshot({ plan: latest, goalStatus }) {
   if (directPlanGoal.value?.id === latest.goalId) directPlanGoal.value = { ...directPlanGoal.value, status: goalStatus }
 }
 
+function setGoalEditBusy(busy) {
+  if (busy && !activeRequest.value) activeRequest.value = 'goal-update'
+  if (!busy && activeRequest.value === 'goal-update') activeRequest.value = null
+}
+
+function syncGoalDetails(goal) {
+  if (selectedGoal.value?.id === goal.id) selectedGoal.value = goal
+  goalItems.value = goalItems.value.map(item => item.id === goal.id ? goal : item)
+  recentItems.value = recentItems.value.map(item => item.id === goal.id ? goal : item)
+  if (directPlanGoal.value?.id === goal.id) directPlanGoal.value = goal
+  if (activeGoalId.value === goal.id) {
+    if (activeSavedText.value !== goal.goalText) {
+      // A changed draft must be analyzed using the new text, not re-created from
+      // the old composer value. Metadata-only edits keep existing plan decisions.
+      goalText.value = goal.goalText
+      goalDetails.value = {}
+      activeSavedText.value = goal.goalText
+      result.value = null
+      plan.value = null
+      clarificationAnswers.value = []
+      directPlanGoal.value = null
+      errorMessage.value = ''
+    }
+    if (plan.value?.status === 'ACTIVE') planGoalStatus.value = goal.status
+  }
+  refreshGoalLists()
+}
+
 async function generateGoalPlan(goal) {
   if (activeRequest.value || !goal?.id) return
   if (availableDraftGoalId.value === goal.id || (plan.value?.goalId === goal.id && plan.value.status === 'REJECTED')) {
@@ -420,8 +459,11 @@ function navigate(view) {
   if (view === 'library') {
     writeRoute('#/goals')
     if (!goalItems.value.length && !goalListLoading.value) loadGoalPage(1)
+  } else if (view === 'tasks') {
+    writeRoute('#/tasks')
+    nextTick(() => taskDesk.value?.focusDesk())
   } else writeRoute('#/new')
-  scrollToTop()
+  if (view !== 'tasks') scrollToTop()
 }
 function showSession(goal, panel = '') {
   detailRequest++
@@ -488,6 +530,7 @@ function restoreRoute() {
   const goalMatch = /^#\/goals\/([1-9]\d*)$/.exec(hash)
   if (goalMatch && Number.isSafeInteger(Number(goalMatch[1]))) openGoalDetails(Number(goalMatch[1]))
   else if (hash === '#/goals') navigate('library')
+  else if (hash === '#/tasks') navigate('tasks')
   else { detailRequest++; activeView.value = 'create'; if (hash !== '#/new') { window.history.replaceState(null, '', '#/new'); lastRoute = '#/new' } }
 }
 onMounted(() => {
@@ -511,13 +554,15 @@ onBeforeUnmount(() => {
     <main class="workspace-main">
       <StudioBackdrop />
       <header class="topbar">
-        <nav class="mobile-nav" aria-label="移动端工作区导航"><button type="button" @click="startNewGoal">新建目标</button><button type="button" @click="navigate('library')">目标库</button></nav>
-        <div class="topbar-context"><span class="space-name">GoalPilot <i>✧</i> {{ activeView === 'session' ? '目标会话' : activeView === 'library' ? '我的目标' : '让想法开始生长' }}</span></div>
+        <nav class="mobile-nav" aria-label="移动端工作区导航"><button type="button" @click="startNewGoal">新建目标</button><button type="button" @click="navigate('tasks')">待办</button><button type="button" @click="navigate('library')">目标库</button></nav>
+        <div class="topbar-context"><span class="space-name">GoalPilot <i>✧</i> {{ activeView === 'session' ? '目标会话' : activeView === 'library' ? '我的目标' : '对话与行动工作台' }}</span></div>
         <div class="topbar-right"><time class="topbar-date" :datetime="todayDateValue"><span class="date-number">{{ todayDay }}</span><span class="date-copy"><strong>{{ todayWeekday }}</strong><small>{{ todayMonth }}</small></span></time><AccountMenu :user="user" @logout="$emit('logout')" /></div>
       </header>
       <div class="workspace-content" :class="{ 'session-content': activeView === 'session' }">
-        <div v-if="activeView === 'create'" class="create-dashboard">
-          <GoalComposer v-model="goalText" v-model:details="goalDetails" :loading="activeRequest === 'analysis'" :error-title="errorTitle" :error-message="errorMessage" :user-name="user.username" :current-goal-id="activeGoalId" :analyzed="!!result && goalSubmissionText === activeSavedText" @submit="submitGoal" @resume="openGoalDetails(activeGoalId)" @dismiss-error="errorMessage = ''" />
+        <div v-if="activeView === 'create' || activeView === 'tasks'" class="create-dashboard">
+          <GoalComposer v-model="goalText" v-model:details="goalDetails" :loading="activeRequest === 'analysis'" :error-title="errorTitle" :error-message="errorMessage" :user-name="user.username" :current-goal-id="activeGoalId" :analyzed="!!result && goalSubmissionText === activeSavedText" @submit="submitGoal" @resume="openGoalDetails(activeGoalId)" @dismiss-error="errorMessage = ''">
+            <template #companion><TaskDesk ref="taskDesk" :tasks="inboxTasks" :state="taskStateFor()" :goals="recentItems" :goals-loading="recentLoading" :goals-error="recentError" @submit="submitTask(taskStateFor())" @library="navigate('library')" @open-goal="openGoalDetails" @updated="syncPlanSnapshot" @ask-assistant="askFromTaskDesk" @retry-goals="loadRecentGoals" /></template>
+          </GoalComposer>
           <RecentGoals :items="recentItems" :loading="recentLoading" :error="recentError" :busy="!!activeRequest" @open="openGoalDetails" @plan="openSavedPlan" @library="navigate('library')" @retry="loadRecentGoals" />
         </div>
         <template v-else-if="activeView === 'session'">
@@ -526,7 +571,8 @@ onBeforeUnmount(() => {
             <p v-if="sessionError" role="alert">{{ sessionError }}</p><p v-else role="status">取回目标信息，不会自动生成或修改计划。</p>
             <div><button type="button" @click="navigate('library')">返回目标库</button><button v-if="sessionError" type="button" @click="openGoalDetails(sessionId)">重新读取</button></div>
           </div>
-          <GoalSessionView v-else :key="selectedGoal.id" ref="sessionView" :goal="selectedGoal" :session="sessionFor(selectedGoal.id)" :initial-panel="sessionPanel" :busy="!!activeRequest" :has-draft="availableDraftGoalId === selectedGoal.id" @back="reviewGoalState" @analyze="continueGoal(selectedGoal)" @generate="generateGoalPlan(selectedGoal)" @updated="syncPlanSnapshot">
+          <GoalSessionView v-else :key="selectedGoal.id" ref="sessionView" :goal="selectedGoal" :session="sessionFor(selectedGoal.id)" :initial-panel="sessionPanel" :busy="!!activeRequest" :has-draft="availableDraftGoalId === selectedGoal.id" @back="reviewGoalState" @analyze="continueGoal(selectedGoal)" @generate="generateGoalPlan(selectedGoal)" @updated="syncPlanSnapshot" @goal-updated="syncGoalDetails" @edit-busy="setGoalEditBusy" @new-task="taskStateFor(selectedGoal.id).open = true">
+            <template #tasks="{ active }"><TaskDesk :tasks="inboxTasks" :state="taskStateFor(selectedGoal.id)" :goal="selectedGoal" :goals="recentItems" :active="active" @submit="submitTask(taskStateFor(selectedGoal.id))" @inbox="navigate('tasks')" @library="navigate('library')" @open-goal="openGoalDetails" /></template>
             <template v-if="planningMode" #conversation>
               <PlanningConversation v-model:answers="clarificationAnswers" :goal="selectedGoal" :result="result" :plan="plan" :active-request="activeRequest" :error-message="errorMessage" :error-title="errorTitle" @analyze="submitGoal" @clarify="submitClarification" @generate-plan="createPlan" @open-plan="sessionView?.openPanel('plan')" @open-info="sessionView?.openPanel('info')" />
             </template>

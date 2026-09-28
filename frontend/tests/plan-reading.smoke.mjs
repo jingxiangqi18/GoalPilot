@@ -55,7 +55,10 @@ const directory = page.locator('.stage-directory button')
 const tasks = page.locator('.task-heading button')
 const showOverview = () => page.getByRole('button', { name: '↗ 路线总览', exact: true }).click()
 const showTasks = () => page.getByRole('button', { name: '☷ 任务清单', exact: true }).click()
-const selectStage = index => page.getByLabel('选择计划阶段').selectOption(String(index))
+async function selectStage(index) {
+  await page.getByRole('combobox', { name: '选择计划阶段' }).click()
+  await page.getByRole('listbox', { name: '选择计划阶段' }).getByRole('option').nth(index).click()
+}
 async function screenshot(name) {
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }))
   await settle()
@@ -161,7 +164,7 @@ try {
   await tasks.nth(0).click()
   assert.equal(await tasks.nth(0).getAttribute('aria-expanded'), 'false')
   assert.ok(parseFloat(await tasks.nth(0).evaluate(el => getComputedStyle(el).transitionDuration)) < .01)
-  assert.equal(await page.getByLabel('选择计划阶段').inputValue(), '1', 'Selected mobile stage stays in the compact picker')
+  assert.equal(await page.getByLabel('选择计划阶段').getAttribute('data-value'), '1', 'Selected mobile stage stays in the compact picker')
 
   // Empty and long server content must stay honest and usable.
   plan = { ...plan, planId: 78, createdAt: '', stages: [], planSummary: '' }

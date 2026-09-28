@@ -1,4 +1,5 @@
-import { getJson, postJson } from './client'
+import { getJson, patchJson, postJson } from './client'
+import { isGoalDetails } from '../utils/goalUpdate'
 
 export async function createGoal(goalText) {
   return postJson('/api/goals', { goalText })
@@ -17,6 +18,14 @@ export async function getGoals(page = 1, size = 9, status = 'ALL') {
 
 export async function getGoalDetails(goalId) {
   return getJson(`/api/goals/${encodeURIComponent(goalId)}`)
+}
+
+export async function updateGoal(goalId, changes) {
+  const data = await patchJson(`/api/goals/${encodeURIComponent(goalId)}`, changes)
+  if (!isGoalDetails(data, goalId) || Object.keys(changes).some(key => data[key] == null)) {
+    throw new Error('返回的目标资料不完整，无法确认保存结果。')
+  }
+  return data
 }
 
 export async function analyzeGoal(goalId) {

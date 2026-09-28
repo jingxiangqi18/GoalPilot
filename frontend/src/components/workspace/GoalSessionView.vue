@@ -14,9 +14,13 @@ const props = defineProps({
   busy: Boolean,
   hasDraft: Boolean,
 })
-const emit = defineEmits(['back', 'analyze', 'generate', 'updated'])
+const emit = defineEmits(['back', 'analyze', 'generate', 'updated', 'goal-updated', 'edit-busy', 'new-task'])
 const panel = ref(props.initialPanel)
 const planVisited = ref(props.initialPanel === 'plan')
+const infoVisited = ref(props.initialPanel === 'info')
+const infoDirty = ref(false)
+const planMode = ref('plan')
+const tasksVisited = ref(false)
 const panelHeading = ref(null)
 const panelButton = ref(null)
 const conversationHost = ref(null)
@@ -25,7 +29,8 @@ const goalTitle = computed(() => String(props.goal.goalText || '').split('\n').f
 
 async function openPanel(value) {
   panel.value = value
-  if (value === 'plan') planVisited.value = true
+  if (value === 'plan' && planMode.value === 'plan') planVisited.value = true
+  if (value === 'info') infoVisited.value = true
   await nextTick()
   if (value) panelHeading.value?.focus({ preventScroll: true })
   else {
@@ -43,6 +48,13 @@ async function askAssistant(context) {
   const message = buildTaskQuestion(context)
   if (message) props.session.taskSuggestion = { message, title: context.taskTitle }
   await openPanel('')
+}
+async function openTaskComposer() {
+  planMode.value = 'tasks'
+  tasksVisited.value = true
+  emit('new-task')
+  await openPanel('plan')
+  document.querySelector('#goal-tools-panel .task-create-form textarea')?.focus({ preventScroll: true })
 }
 defineExpose({ openPanel, askAssistant })
 
@@ -70,15 +82,17 @@ onBeforeUnmount(() => media.removeEventListener('change', updateWidth))
     <div class="session-body">
       <div ref="conversationHost" class="session-conversation" :class="{ 'mobile-hidden': panel && narrow }" :inert="!!panel && narrow">
         <slot name="conversation">
-          <GoalAssistantView :goal="goal" :session="session" @open-library="$emit('back')" @open-plan="openPanel('plan')" @analyze="$emit('analyze')" @generate="$emit('generate')" />
+          <GoalAssistantView :goal="goal" :session="session" :action-busy="busy || infoDirty" @open-library="$emit('back')" @open-plan="planMode = 'plan'; openPanel('plan')" @new-task="openTaskComposer" @analyze="$emit('analyze')" @generate="$emit('generate')" />
         </slot>
       </div>
       <Transition name="tool-reveal">
       <aside v-show="panel" id="goal-tools-panel" class="session-panel" :inert="!panel" :aria-label="panelLabel" @keydown.esc.stop="closePanel">
         <header class="panel-heading"><div class="panel-heading-copy"><span class="panel-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4 6 2 2 3-4M12 6h8M4 13h4m4 0h8M4 19h4m4 0h8"/></svg></span><div><span>WORKSPACE · 手动操作</span><h2 ref="panelHeading" tabindex="-1">{{ panelLabel }}</h2></div></div><button type="button" aria-label="关闭工具面板，返回对话" @click="closePanel">×</button></header>
         <div class="panel-scroll">
-          <GoalInfoPanel v-if="panel === 'info'" :goal="goal" :busy="busy" :has-draft="hasDraft" @analyze="$emit('analyze')" @generate="$emit('generate')" @plan="openPanel('plan')" />
-          <div v-show="panel === 'plan'" class="session-plan-content">
+          <GoalInfoPanel v-if="infoVisited" v-show="panel === 'info'" :active="panel === 'info'" :goal="goal" :busy="busy" :has-draft="hasDraft" @analyze="$emit('analyze')" @generate="$emit('generate')" @plan="openPanel('plan')" @goal-updated="emit('goal-updated', $event)" @edit-busy="emit('edit-busy', $event)" @dirty-change="infoDirty = $event" />
+          <nav v-if="panel === 'plan' && $slots.tasks" class="plan-task-modes" aria-label="计划与随手任务"><button type="button" :aria-pressed="planMode === 'plan'" @click="planMode = 'plan'; planVisited = true">计划清单</button><button type="button" :aria-pressed="planMode === 'tasks'" @click="planMode = 'tasks'; tasksVisited = true">随手任务</button></nav>
+          <div v-if="tasksVisited" v-show="panel === 'plan' && planMode === 'tasks'" class="session-inbox" :inert="panel !== 'plan' || planMode !== 'tasks'"><slot name="tasks" :active="panel === 'plan' && planMode === 'tasks'" /></div>
+          <div v-show="panel === 'plan' && planMode === 'plan'" class="session-plan-content" :inert="panel !== 'plan' || planMode !== 'plan'">
             <slot v-if="planVisited" name="plan">
               <SavedPlanView :goal="goal" embedded @back="closePanel" @updated="$emit('updated', $event)" @ask-assistant="askAssistant" />
             </slot>
@@ -92,6 +106,7 @@ onBeforeUnmount(() => media.removeEventListener('change', updateWidth))
 
 <style scoped>
 .goal-session { height: 100%; min-height: 0; display: flex; flex-direction: column; font-family: var(--text-cn); }
+.plan-task-modes { display: flex; gap: 8px; padding: 3px; margin: 2px 0 17px; background: var(--canvas-soft); border: 1px solid var(--line); }.plan-task-modes button { flex: 1; padding: 9px; border: 1px solid transparent; background: transparent; color: var(--ink-600); font-size: 12px; }.plan-task-modes button[aria-pressed="true"] { color: var(--accent-deep); background: var(--paper); border-color: var(--line-strong); box-shadow: 2px 2px 0 #c8d3bf; }.session-inbox :deep(.task-desk) { padding: 0; border: 0; box-shadow: none; }
 .session-header { display: flex; align-items: center; flex-shrink: 0; gap: 15px; min-height: 85px; padding: 14px 26px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 71%, transparent); }
 .session-back { flex: 0 0 32px; height: 32px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-500); font-size: 20px; }.session-back:hover { background: var(--canvas-soft); }
 .session-title { min-width: 0; flex: 1; }.session-title > span { display: flex; align-items: center; gap: 9px; color: var(--ink-500); font-family: var(--display); font-size: 9px; letter-spacing: .1em; }.session-title i { font-size: 13px; font-style: normal; }.session-title small { font-family: var(--text-cn); font-size: 10px; letter-spacing: 0; }.session-title h1 { max-width: 720px; margin: 5px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-700); font-size: 16px; font-weight: 500; }

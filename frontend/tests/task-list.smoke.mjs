@@ -46,7 +46,7 @@ async function progress(done) { assert.equal(await page.getByRole('progressbar',
 try {
   await page.goto(process.env.APP_URL || 'http://127.0.0.1:5184', { waitUntil: 'domcontentloaded' })
   await page.locator('.recent-goal').first().waitFor()
-  await page.locator('.garden-art img').evaluate(img => img.decode())
+  await page.locator('.desk-art').evaluate(img => img.decode())
   assert.equal(requests.filter(item => item.path.endsWith('active-plan')).length, 0, 'Home must not prefetch every plan')
   for (const width of [2560, 1600, 1320, 1100, 800, 620, 390, 320]) {
     await page.setViewportSize({ width, height: width > 1800 ? 1440 : 1000 }); await settle()

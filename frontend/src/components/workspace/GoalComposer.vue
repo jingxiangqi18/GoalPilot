@@ -78,13 +78,13 @@ function submitShortcut(event) {
 </script>
 
 <template>
-  <section class="composer-view" :class="{ 'with-task-desk': $slots.companion }">
+  <section class="composer-view">
     <header class="editorial-heading">
       <PixelScene class="composer-scenery" eager />
       <div class="departure-board"><span class="station-eyebrow">GOALPILOT · A LITTLE WORLD</span><span class="kicker">你好，{{ userName }}</span><h1>下一站，<span>你想去哪里？</span></h1><p>说出一个想法。和 Agent 一起，<br />把它变成可以出发的路线。</p><div class="boarding-line"><span aria-hidden="true">■ ── ■ ── □</span><small>从想法，到行动</small></div></div>
       <span class="scene-caption" aria-hidden="true">RIVERSIDE · 街区与绿意之间</span>
     </header>
-    <ProgressGarden v-if="!$slots.companion" />
+    <ProgressGarden />
     <form ref="form" class="writing-card agent-input-surface" :class="{ 'is-focused': focused, 'is-working': loading }" @submit.prevent="submit" @keydown.ctrl.enter="submitShortcut" @keydown.meta.enter="submitShortcut">
       <div class="composer-caption"><AgentSignal :active="loading" /><span>和 GoalPilot 聊聊</span><small>从想法，到行动</small></div>
       <div class="writing-surface"><label class="sr-only" for="goal-input">我的目标</label><textarea ref="input" id="goal-input" v-model="goalText" maxlength="1000" rows="3" :disabled="loading" :aria-invalid="count > 1000" aria-describedby="goal-length-note" placeholder="告诉我你想完成什么，或是正卡在哪一步…" @focus="focused = true" @blur="focused = false"></textarea></div>
@@ -102,7 +102,6 @@ function submitShortcut(event) {
       <Transition name="example-confirm"><div v-if="pendingExample" class="example-confirm" role="group" aria-label="确认替换目标描述"><p>要用这个灵感替换当前描述吗？<small>{{ pendingExample }}。补充条件会保留。</small></p><button type="button" @click="pendingExample = null">保留原文</button><button type="button" @click="applyExample(pendingExample)">使用示例</button></div></Transition>
       <div class="example-grid"><button v-for="example in examples" :key="example.tag" type="button" :disabled="loading" @click="chooseExample(example.text)"><span aria-hidden="true">{{ example.icon }}</span><div><small>{{ example.tag }}</small><strong>{{ example.text }}</strong></div><i aria-hidden="true">↗</i></button></div>
     </section>
-    <aside v-if="$slots.companion" class="composer-companion"><slot name="companion" /></aside>
   </section>
 </template>
 
@@ -142,16 +141,4 @@ function submitShortcut(event) {
 @media(max-width: 1100px) { .composer-view { gap: 0 18px; grid-template-columns: minmax(0, 1fr) 285px; }.composer-view > .editorial-heading { grid-template-columns: 340px 1fr; }.composer-scenery { left: 325px; }.departure-board { padding: 24px; }.editorial-heading h1 { font-size: 27px; } }
 @media(max-width: 960px) { .composer-view { display: block; }.composer-view > .editorial-heading { min-height: 250px; }.writing-card { padding: 20px; } }
 @media(max-width: 620px) { .composer-view > .editorial-heading { display: flex; flex-direction: column; padding-top: 140px; margin-bottom: 20px; }.composer-scenery { inset: 0 0 auto; height: 160px; }.departure-board { padding: 21px 20px 18px; clip-path: polygon(0 0, 16px 0, 16px 6px, calc(100% - 16px) 6px, calc(100% - 16px) 0, 100% 0, 100% 100%, 0 100%); }.station-eyebrow { margin-bottom: 12px; font-size: 10px; }.editorial-heading h1 { font-size: 25px; }.editorial-heading h1 > span { display: inline; }.boarding-line { padding-top: 14px; }.scene-caption { display: none; }.writing-card { padding: 17px; border-radius: 3px; }.composer-caption small { display: none; }.save-note { font-size: 10px; }.prompt-heading small { font-size: 9px; }.details-grid, .example-grid { grid-template-columns: 1fr; }.example-grid button { padding: 13px; align-items: center; }.example-grid strong { margin-top: 4px; font-size: 11px; }.composer-actions > div { gap: 7px; }.details-toggle { font-size: 11px; gap: 4px; }.details-toggle small { display: none; }.analyze-button { padding-inline: 9px; gap: 8px; } }
-</style>
-
-<style scoped>
-/* Conversation and ToDo share one workspace; the input remains the primary column. */
-.with-task-desk { grid-template-columns: minmax(0, 1fr) minmax(360px, .68fr); gap: 0 26px; }
-.with-task-desk > .editorial-heading { min-height: 218px; margin-bottom: 24px; grid-template-columns: 420px 1fr; }
-.with-task-desk .departure-board { padding-block: 21px; }.with-task-desk .station-eyebrow { margin-bottom: 11px; }.with-task-desk .boarding-line { padding-top: 12px; }
-.with-task-desk > .composer-companion { grid-column: 2; grid-row: 2 / 6; min-width: 0; align-self: start; }
-.with-task-desk > .prompt-module { grid-column: 1; }.with-task-desk .example-grid { grid-template-columns: 1fr; gap: 8px; }.with-task-desk .example-grid button { align-items: center; padding: 12px; }.with-task-desk .example-grid strong { margin-top: 4px; }
-@media(max-width: 1200px) { .with-task-desk { grid-template-columns: minmax(0, 1fr) 345px; gap: 0 18px; }.with-task-desk .details-grid { grid-template-columns: 1fr; } }
-@media(max-width: 1050px) { .with-task-desk { display: block; }.with-task-desk > .composer-companion { margin-top: 24px; } }
-@media(max-width: 620px) { .with-task-desk > .editorial-heading { padding-top: 110px; }.with-task-desk .composer-scenery { height: 130px; }.with-task-desk .departure-board { padding: 18px; } }
 </style>

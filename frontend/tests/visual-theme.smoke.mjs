@@ -16,6 +16,7 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
   const request = route.request(), path = new URL(request.url()).pathname
   requests.push({ path, method: request.method(), body: request.postData() })
   let data, status = 200
+  if (path === '/api/tasks' && route.request().method() === 'GET') return route.fulfill({ json: { items: [], page: 1, size: 20, total: 0, totalPages: 0 } })
   if (path === '/api/auth/login') {
     if (hold) await hold
     if (loginFailure) { status = 400; data = { message: '账号或密码不正确，请重新输入。' } }
@@ -88,12 +89,12 @@ try {
   assert.deepEqual(JSON.parse(requests.filter(r => r.path.endsWith('/login'))[1].body), { account: 'jakin@example.com', password: 'secret123' })
   for (const [width, height] of [[2560, 1440], [1600, 1050], [1320, 900], [1100, 900], [961, 900], [960, 900], [800, 900], [390, 844], [320, 640]]) {
     await page.setViewportSize({ width, height }); await settle(); await noOverflow('Home overflow ' + width)
-    await page.locator('.desk-art').evaluate(img => img.decode())
+    await page.locator('.garden-art img').evaluate(img => img.decode())
     await page.locator('.composer-scenery img').evaluate(img => img.decode())
     assert.ok(await page.locator('.composer-scenery img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-riverside') && img.naturalWidth / img.naturalHeight === 3), 'Home uses a panoramic river city, with room for the landscape')
-    assert.ok(await page.locator('.desk-art').evaluate(img => img.currentSrc.includes('goalpilot-pixel-station')), 'A compact station illustration complements the river city panorama')
+    assert.ok(await page.locator('.garden-art img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-station')), 'A compact station illustration complements the river city panorama')
     assert.ok(await page.locator('.composer-scenery').isVisible(), 'City scene remains visible at ' + width)
-    assert.ok(await page.locator('.task-desk').isVisible(), 'ToDo remains accessible at ' + width)
+    assert.equal(await page.locator('.task-desk').count(), 0, 'ToDo has its own page, not a second homepage section')
     const bounds = await page.locator('.writing-card').boundingBox()
     const scenery = await page.locator('.editorial-heading').boundingBox()
     assert.ok(bounds.y >= scenery.y + scenery.height, 'Artwork never covers the composer')

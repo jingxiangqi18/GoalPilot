@@ -46,6 +46,7 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
   const path = new URL(req.url()).pathname
   requests.push({ path, method: req.method(), body: req.postDataJSON() })
   let data, status = 200
+  if (path === '/api/tasks' && route.request().method() === 'GET') return route.fulfill({ json: { items: [], page: 1, size: 20, total: 0, totalPages: 0 } })
   if (path === '/api/auth/me') data = { id: 1, username: 'Jakin', email: 'jakin@example.com' }
   else if (path.endsWith('/active-plan')) {
     status = queryStatus

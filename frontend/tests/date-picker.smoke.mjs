@@ -16,6 +16,7 @@ const writes = [], errors = []
 await context.route(url => url.pathname.startsWith('/api/'), async route => {
   const request = route.request(), path = new URL(request.url()).pathname
   let data
+  if (path === '/api/tasks' && route.request().method() === 'GET') return route.fulfill({ json: { items: [], page: 1, size: 20, total: 0, totalPages: 0 } })
   if (request.method() === 'PATCH' && path === '/api/goals/1') {
     writes.push(request.postDataJSON())
     Object.assign(goal, request.postDataJSON())

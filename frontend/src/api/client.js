@@ -70,7 +70,8 @@ async function requestJson(path, options = {}) {
   if (!response.ok) {
     const isPublicAuthRequest = path === '/api/auth/login' || path === '/api/auth/register'
 
-    if (response.status === 401 && !isPublicAuthRequest) {
+    // A late response from a previous login must not clear a newer account.
+    if (response.status === 401 && !isPublicAuthRequest && token === getAccessToken()) {
       clearAccessToken()
       window.dispatchEvent(new CustomEvent('goalpilot:unauthorized'))
     }

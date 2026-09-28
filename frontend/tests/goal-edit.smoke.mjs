@@ -23,6 +23,7 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
   const body = request.postData() ? request.postDataJSON() : null
   requests.push({ path, method: request.method(), body, headers: request.headers() })
   let data, status = 200
+  if (path === '/api/tasks' && route.request().method() === 'GET') return route.fulfill({ json: { items: [], page: 1, size: 20, total: 0, totalPages: 0 } })
   if (path === '/api/auth/me') data = { id: 1, username: 'Jakin', email: 'jakin@example.com' }
   else if (path === '/api/goals' && request.method() === 'POST') {
     data = { ...goals[0], id: 7, goalText: body.goalText, status: 'DRAFT', priority: null, deadline: null }

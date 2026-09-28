@@ -1,13 +1,18 @@
 package com.qijx.goalpilot.task.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.qijx.goalpilot.goal.service.GoalService;
 import com.qijx.goalpilot.task.dto.TaskCreateRequest;
+import com.qijx.goalpilot.task.dto.TaskPageResponse;
 import com.qijx.goalpilot.task.dto.TaskResponse;
 import com.qijx.goalpilot.task.entity.Task;
 import com.qijx.goalpilot.task.entity.TaskPriority;
@@ -60,5 +65,30 @@ public class TaskService {
         }
 
         return TaskResponse.from(task);
+    }
+
+    public TaskPageResponse findMyTasks(Long userId, long page, long size){
+        Page<Task> taskPage = new Page<>(page, size);
+
+        LambdaQueryWrapper<Task> queryWrapper = new LambdaQueryWrapper<Task>()
+            .eq(Task::getUserId, userId)
+            .orderByDesc(Task::getCreatedAt)
+            .orderByDesc(Task::getId);
+
+        Page<Task> resultPage = taskMapper.selectPage(taskPage, queryWrapper);
+
+        List<TaskResponse> items = new ArrayList<>();
+
+        for(Task task : resultPage.getRecords()){
+            items.add(TaskResponse.from(task));
+        }
+
+        return new TaskPageResponse(
+            items,
+            resultPage.getCurrent(),
+            resultPage.getSize(),
+            resultPage.getTotal(),
+            resultPage.getPages()
+        );
     }
 }

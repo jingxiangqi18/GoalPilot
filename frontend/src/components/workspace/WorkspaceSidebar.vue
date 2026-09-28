@@ -17,9 +17,9 @@ defineEmits(['logout', 'navigate', 'new-goal', 'open-goal'])
     <button class="brand" type="button" @click="$emit('navigate', 'create')"><span class="brand-mark" aria-hidden="true"><AgentSignal /></span><span><strong>GoalPilot</strong><small>YOUR NEXT STATION</small></span></button>
     <button class="new-conversation" type="button" :disabled="busy" @click="$emit('new-goal')"><span aria-hidden="true">＋</span> 新建目标 <i aria-hidden="true">↗</i></button>
     <nav class="main-nav" aria-label="工作区导航">
-      <button type="button" :class="{ active: activeView === 'create' }" @click="$emit('navigate', 'create')"><span aria-hidden="true">✧</span><strong>规划工作台</strong></button>
-      <button type="button" :class="{ active: activeView === 'tasks' }" @click="$emit('navigate', 'tasks')"><span aria-hidden="true">☑</span><strong>待办清单</strong></button>
-      <button type="button" :class="{ active: activeView === 'library' }" @click="$emit('navigate', 'library')"><span aria-hidden="true">☷</span><strong>我的目标</strong><small>{{ goalTotal }}</small></button>
+      <button type="button" :class="{ active: activeView === 'create' }" :aria-current="activeView === 'create' ? 'page' : undefined" @click="$emit('navigate', 'create')"><span aria-hidden="true">✧</span><strong>规划工作台</strong></button>
+      <button type="button" :class="{ active: activeView === 'tasks' }" :aria-current="activeView === 'tasks' ? 'page' : undefined" @click="$emit('navigate', 'tasks')"><span aria-hidden="true">☑</span><strong>待办清单</strong></button>
+      <button type="button" :class="{ active: activeView === 'library' }" :aria-current="activeView === 'library' ? 'page' : undefined" @click="$emit('navigate', 'library')"><span aria-hidden="true">☷</span><strong>我的目标</strong><small>{{ goalTotal }}</small></button>
     </nav>
     <nav class="recent-goals" aria-label="最近的目标">
       <header><span>最近的目标</span><i aria-hidden="true">↙</i></header>

@@ -13,6 +13,7 @@ await context.route('https://fonts.gstatic.com/**', route => route.abort())
 const goals = [1, 2].map(id => ({ id, goalText: id === 1 ? '记录城市与公园之间的风景' : '完成一个可以展示的 Java 项目', status: id === 1 ? 'ACTIVE' : 'DRAFT', createdAt: '2026-09-03T21:30:00' }))
 const plan = { planId: 8, goalId: 1, status: 'ACTIVE', planTitle: '从街区走向公园', createdAt: goals[0].createdAt, stages: [{ stageId: 9, title: '发现身边的风景', objective: '走完一段新的路线', timeRange: '第一周', tasks: [{ taskId: 1, title: '记录河流与街区', description: '整理沿途的照片', completionCriteria: '完成一篇记录', status: 'TODO' }] }] }
 const requests = [], errors = []
+const storedTasks = []
 let status = 201, malformed = false, abort = false, hold = null, release, sequence = 0
 await context.route(url => url.pathname.startsWith('/api/'), async route => {
   const request = route.request(), path = new URL(request.url()).pathname
@@ -26,12 +27,17 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
   else if (path === '/api/goals/1/active-plan') data = plan
   else if (path.endsWith('/active-plan')) { code = 404; data = { message: '无正式计划' } }
   else if (path.endsWith('/assistant')) data = { reply: '请按任务的完成标准推进。' }
-  else if (path === '/api/tasks' && request.method() === 'POST') {
+  else if (path === '/api/tasks' && request.method() === 'GET') {
+    const query = new URL(request.url()).searchParams, page = Number(query.get('page')), size = Number(query.get('size'))
+    const items = request.headers().authorization === 'Bearer second-user' ? [] : storedTasks
+    data = { items: items.slice((page - 1) * size, page * size), page, size, total: items.length, totalPages: Math.ceil(items.length / size) }
+  } else if (path === '/api/tasks' && request.method() === 'POST') {
     if (hold) await hold
     if (abort) return route.abort('connectionfailed')
     code = status
     data = code === 201 ? { id: ++sequence, goalId: null, planTaskId: null, description: null, completionCriteria: null, deadline: null, completedAt: null, ...body, status: 'TODO', createdAt: '2026-09-24T12:00:00', updatedAt: '2026-09-24T12:00:00' } : { message: '模拟任务保存失败' }
     if (malformed) data = { taskId: sequence, title: body.title, status: 'TODO' }
+    if (code === 201 && !malformed) storedTasks.unshift(data)
   } else if (path === '/api/tasks/1/status' && request.method() === 'PATCH') { plan.stages[0].tasks[0].status = body.status; data = plan.stages[0].tasks[0] }
   else { errors.push('Unexpected API ' + request.method() + ' ' + path); code = 500; data = {} }
   await route.fulfill({ status: code, contentType: 'application/json', body: JSON.stringify(data) })
@@ -52,8 +58,10 @@ async function saved(title) { await receipt(title).waitFor(); await page.waitFor
 async function shot(name) { await page.waitForTimeout(220); await page.screenshot({ path: join(artifacts, name + '.jpg'), type: 'jpeg', quality: 65, fullPage: true }) }
 try {
   await page.goto(root + '/#/new')
-  await desk().waitFor()
   await page.getByRole('textbox', { name: '我的目标', exact: true }).fill('这是一段尚未提交的目标描述')
+  assert.equal(await desk().count(), 0, 'The Agent workspace does not embed the ToDo page')
+  await inbox()
+  assert.equal(await page.locator('.composer-view').count(), 0, 'ToDo is a dedicated page')
   await start('   '); assert.ok(await create().isDisabled())
   await form().getByRole('textbox', { name: '任务标题', exact: true }).fill('  整理演示视频  ')
   hold = new Promise(resolve => { release = resolve })
@@ -64,10 +72,12 @@ try {
   assert.equal(posts()[0].authorization, 'Bearer inbox-test')
   assert.equal(await receipt('整理演示视频').count(), 0, 'No optimistic receipt before the server confirms')
   release(); hold = null; await saved('整理演示视频')
+  await desk().getByRole('button', { name: '✧ 回到工作台' }).click()
   assert.equal(await page.getByRole('textbox', { name: '我的目标', exact: true }).inputValue(), '这是一段尚未提交的目标描述')
+  await inbox()
   assert.equal(await desk().getByRole('checkbox').count(), 0, 'A new Task must never expose PlanTask completion controls')
   await start('预约一段公园步行')
-  await form().getByRole('button', { name: /补充.*说明/ }).click()
+  assert.ok(await form().getByRole('combobox', { name: '任务关联目标' }).isVisible(), 'The manual page opens the full form')
   await form().getByRole('combobox', { name: '任务关联目标' }).click()
   await page.getByRole('option').filter({ hasText: goals[0].goalText }).click()
   assert.equal(await form().getByRole('combobox', { name: '任务关联目标' }).getAttribute('data-value'), '1', 'Selecting a goal commits the association')
@@ -81,8 +91,10 @@ try {
   await create().click(); await saved('预约一段公园步行')
   assert.deepEqual(posts().at(-1).body, { title: '预约一段公园步行', priority: 'HIGH', goalId: 1, deadline: '2028-02-29T00:05:00', description: '携带相机\n<script>不执行</script>', completionCriteria: '完成一次记录' })
   await receipt('预约一段公园步行').getByRole('button').first().click()
-  assert.match(await receipt('预约一段公园步行').innerText(), /2028年/)
+  assert.match(await page.getByRole('complementary', { name: '任务详情' }).innerText(), /2028年/)
   assert.equal(await receipt('预约一段公园步行').locator('script').count(), 0)
+  assert.equal(await page.getByRole('complementary', { name: '任务详情' }).locator('script').count(), 0)
+  assert.match(await page.getByRole('complementary', { name: '任务详情' }).innerText(), /<script>不执行<\/script>/)
   await shot('inbox-and-agent-1600')
 
   // PlanTask ID 1 and Task ID 1 deliberately collide. Only the former may be patched.
@@ -92,7 +104,7 @@ try {
   await desk().getByRole('checkbox').first().click()
   await page.waitForFunction(() => document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow') === '1')
   assert.deepEqual(requests.filter(request => request.method === 'PATCH').map(request => request.body), [{ status: 'DONE' }])
-  await desk().getByRole('button', { name: /本次新建/ }).click()
+  await desk().getByRole('button', { name: /我的任务/ }).click()
   assert.match(await receipt('整理演示视频').innerText(), /待开始/)
   await desk().getByRole('button', { name: '目标计划', exact: true }).click()
   await page.locator('#plan').waitFor()
@@ -141,8 +153,9 @@ try {
   }
   await page.setViewportSize({ width: 1600, height: 1100 })
   await page.reload(); await desk().waitFor()
-  assert.equal(await page.locator('.inbox-task').count(), 0, 'A create-only API cannot restore history; never claim an empty server list')
-  assert.match(await desk().innerText(), /后端记录仍在/)
+  await receipt('整理演示视频').waitFor()
+  assert.equal(await page.locator('.inbox-task').count(), storedTasks.length, 'Saved tasks return from the API after reload')
+  assert.match(await desk().innerText(), /任务已与账户同步/)
   await start('不应泄露给另一账户')
   hold = new Promise(resolve => { release = resolve })
   await create().click(); await page.waitForFunction(() => document.querySelector('.task-create-form')?.getAttribute('aria-busy') === 'true')
@@ -158,6 +171,6 @@ try {
   await start('过期登录任务'); status = 401
   await create().click(); await page.getByRole('button', { name: '进入 GoalPilot', exact: true }).waitFor()
   assert.deepEqual(errors, [])
-  console.log('Task inbox passed: create contract, Agent/ToDo dual view, ID isolation, local deadline, uncertain writes, draft retention, logout and 320–2560. Artifacts: ' + artifacts)
+  console.log('Task inbox passed: create + server refresh, Agent/ToDo dual view, ID isolation, local deadline, uncertain writes, draft retention, logout and 320–2560. Artifacts: ' + artifacts)
 } catch (error) { await shot('failure').catch(() => {}); console.error('Task inbox artifacts: ' + artifacts); throw error }
 finally { release?.(); await browser.close() }

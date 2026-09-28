@@ -20,6 +20,7 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
   const request = route.request(), path = new URL(request.url()).pathname
   requests.push({ path, method: request.method(), body: request.postData() })
   let data, status = 200
+  if (path === '/api/tasks' && route.request().method() === 'GET') return route.fulfill({ json: { items: [], page: 1, size: 20, total: 0, totalPages: 0 } })
   if (path === '/api/auth/me') data = { id: 1, username: 'Jakin', email: 'jakin@example.com' }
   else if (path === '/api/goals') { status = listStatus; data = { items, total: items.length, page: 1, totalPages: items.length ? 1 : 0 } }
   else if (path === '/api/goals/42') data = goal
@@ -46,7 +47,7 @@ async function progress(done) { assert.equal(await page.getByRole('progressbar',
 try {
   await page.goto(process.env.APP_URL || 'http://127.0.0.1:5184', { waitUntil: 'domcontentloaded' })
   await page.locator('.recent-goal').first().waitFor()
-  await page.locator('.desk-art').evaluate(img => img.decode())
+  await page.locator('.garden-art img').evaluate(img => img.decode())
   assert.equal(requests.filter(item => item.path.endsWith('active-plan')).length, 0, 'Home must not prefetch every plan')
   for (const width of [2560, 1600, 1320, 1100, 800, 620, 390, 320]) {
     await page.setViewportSize({ width, height: width > 1800 ? 1440 : 1000 }); await settle()

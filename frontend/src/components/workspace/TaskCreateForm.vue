@@ -22,23 +22,22 @@ defineExpose({ focusTitle })
 
 <template>
   <form class="task-create-form" aria-label="新建待办任务" :aria-busy="state.pending" @submit.prevent="$emit('submit')">
-    <header><div><strong>记下一件具体的事</strong><small>直接保存任务，不调用 AI</small></div><button type="button" aria-label="收起新建任务，保留草稿" @click="$emit('close')">−</button></header>
+    <header><div><strong>记下一件具体的事</strong></div><button type="button" aria-label="收起新建任务，保留草稿" @click="$emit('close')">−</button></header>
     <fieldset :disabled="state.pending">
       <label class="task-field"><span>任务标题 <small>{{ state.draft.title.length }} / 300</small></span><textarea ref="titleInput" v-model="state.draft.title" rows="2" maxlength="300" placeholder="例如：整理项目演示视频" aria-label="任务标题" /></label>
       <p v-if="state.draft.title && changes.errors.title" class="field-error">{{ changes.errors.title }}</p>
       <button class="detail-toggle" type="button" :aria-expanded="state.detailsOpen" @click="state.detailsOpen = !state.detailsOpen">{{ state.detailsOpen ? '− 收起' : '＋ 补充' }} 说明、时间与关联目标</button>
       <div v-show="state.detailsOpen" class="task-extra" :inert="!state.detailsOpen">
-        <div class="task-field"><span>关联目标</span><PixelSelect v-model="state.draft.goalId" label="任务关联目标" :options="goalOptions" :disabled="state.pending" :active="active && state.detailsOpen" /><small>这里列出最近目标；其他目标可从目标库进入会话后添加任务。</small></div>
+        <div class="task-field"><span>关联目标 <small>最近目标</small></span><PixelSelect v-model="state.draft.goalId" label="任务关联目标" :options="goalOptions" :disabled="state.pending" :active="active && state.detailsOpen" /></div>
         <div class="task-field"><span>优先级</span><PixelSelect v-model="state.draft.priority" label="任务优先级" :options="taskPriorities" :disabled="state.pending" :active="active && state.detailsOpen" /></div>
         <div class="task-field"><span>期待完成 <small>选填</small></span><PixelDateTimePicker v-model="state.draft.deadline" label="任务期待完成时间" clearable :disabled="state.pending" :active="active && state.detailsOpen" /></div>
         <label class="task-field"><span>任务说明 <small>选填 · 最多 5000 字</small></span><textarea v-model="state.draft.description" rows="3" maxlength="5000" aria-label="任务说明" placeholder="要做什么，有哪些注意事项？" /></label>
         <label class="task-field"><span>完成标准 <small>选填 · 最多 2000 字</small></span><textarea v-model="state.draft.completionCriteria" rows="2" maxlength="2000" aria-label="任务完成标准" placeholder="做到什么程度，就可以算完成？" /></label>
       </div>
-      <p v-if="goal && state.draft.goalId === goal.id" class="link-hint">↗ 将关联当前目标，不改动已有计划。</p>
-      <p v-else class="link-hint">{{ state.draft.goalId ? '↗ 将关联所选目标，不改动已有计划。' : '□ 不必先建立目标，也可以记录任务。' }}</p>
+      <p v-if="!state.detailsOpen && state.draft.goalId" class="link-hint">↗ {{ goalOptions.find(option => option.value === state.draft.goalId)?.label }}</p>
     </fieldset>
     <div v-if="state.error" class="task-error" role="alert"><p>{{ state.error }}</p><label v-if="state.uncertain"><input v-model="state.retryAcknowledged" type="checkbox" :disabled="state.pending" />已核对未保存，允许重新提交</label></div>
-    <footer><small>仅保存任务，不会自动完成或排期</small><button type="submit" class="create-task-submit" :disabled="!valid || state.pending || (state.uncertain && !state.retryAcknowledged)">{{ state.pending ? '正在保存…' : state.uncertain ? '确认重新提交' : '保存任务' }} <span aria-hidden="true">＋</span></button></footer>
+    <footer><button type="submit" class="create-task-submit" :disabled="!valid || state.pending || (state.uncertain && !state.retryAcknowledged)">{{ state.pending ? '正在保存…' : state.uncertain ? '确认重新提交' : '保存任务' }} <span aria-hidden="true">＋</span></button></footer>
   </form>
 </template>
 

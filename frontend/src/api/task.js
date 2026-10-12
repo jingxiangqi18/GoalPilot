@@ -1,6 +1,13 @@
-import { getJson, postJson } from './client'
+import { getJson, patchJson, postJson } from './client'
 import { isTaskCreateReceipt } from '../utils/taskDraft'
 import { isTaskPage, TASK_PAGE_SIZE } from '../utils/taskPage'
+import { isTaskUpdateReceipt } from '../utils/taskUpdate'
+
+export async function updateTask(id, patch) {
+  const task = await patchJson(`/api/tasks/${encodeURIComponent(id)}`, patch)
+  if (!isTaskUpdateReceipt(task, id, patch)) throw new Error('任务更新回执不完整，无法确认保存结果。')
+  return task
+}
 
 export async function getTasks(page = 1, size = TASK_PAGE_SIZE) {
   if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(size) || size < 1 || size > 100) {

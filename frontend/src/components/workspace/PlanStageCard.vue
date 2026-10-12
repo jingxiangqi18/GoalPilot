@@ -41,7 +41,7 @@ watch(visibleTasks, async () => {
   <article ref="card" class="stage-card" @focusin="rememberFocus">
     <header class="stage-heading"><div><span class="stage-kicker">阶段 {{ String(index + 1).padStart(2, '0') }}</span><h3 class="stage-title" tabindex="-1">{{ stage.title }}</h3></div><span v-if="stage.timeRange" class="time-range"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="4.5" width="14" height="13" rx="3"/><path d="M6.5 2.5v4m7-4v4M3 9h14"/></svg>{{ stage.timeRange }}</span></header>
     <details v-if="stage.objective" class="stage-objective"><summary>阶段目标与说明</summary><p>{{ stage.objective }}</p></details>
-    <div class="tasks-heading"><h4>行动清单 <span>{{ stage.tasks.length }} 项</span></h4><span>{{ editable ? '勾选完成 · 点开查看详情' : '点开查看说明与完成标准' }}</span></div>
+    <div class="tasks-heading"><h4>行动清单 <span>{{ stage.tasks.length }} 项</span></h4></div>
     <div class="task-search"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input v-model="search" type="search" aria-label="搜索当前阶段任务" placeholder="查找这份清单里的任务" maxlength="200" /><button v-if="search" type="button" aria-label="清除任务搜索" @click="search = ''">×</button></div>
     <div class="task-filters" role="group" aria-label="筛选当前阶段任务"><button v-for="item in filters" :key="item.key" type="button" :aria-pressed="filter === item.key" @click="filter = item.key">{{ item.label }}<span>{{ item.count }}</span></button></div>
     <ol class="task-list" aria-label="当前阶段行动清单">

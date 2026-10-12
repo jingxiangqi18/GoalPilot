@@ -117,7 +117,7 @@ try {
   await choose(0, '跳过任务')
   await page.locator('.execution-notice.success').filter({ hasText: '已跳过' }).waitFor()
   await assertProgress(1)
-  assert.match(await page.locator('.execution-progress').innerText(), /1 项已跳过，不计入已完成/)
+  assert.match(await page.locator('.execution-progress').innerText(), /1 项已跳过/)
   await choose(0, '开始进行')
   await page.locator('.execution-notice.success').filter({ hasText: '进行中' }).waitFor()
   await choose(0, '设为待开始')
@@ -136,7 +136,7 @@ try {
   }
   await assertProgress(4)
   assert.equal(goal.status, 'ACTIVE', 'Completing tasks does not complete the goal')
-  assert.match(await page.locator('.execution-progress').innerText(), /不会自动更改目标状态/)
+  assert.match(await page.locator('.execution-progress').innerText(), /全部任务已完成/)
 
   await savedPage()
   await assertProgress(4)

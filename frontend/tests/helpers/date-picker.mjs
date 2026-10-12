@@ -6,6 +6,7 @@ export async function chooseDateTime(page, value, trigger = page.locator('#edit-
   await calendar.getByRole('textbox', { name: '跳转年份' }).fill(year)
   await calendar.getByRole('button', { name: `查看${year}年${Number(month)}月`, exact: true }).click()
   await calendar.locator(`[data-date="${date}"]`).click()
+  if (await calendar.locator('.calendar-sections').isVisible()) await calendar.getByRole('button', { name: '选择具体时间', exact: false }).click()
   await calendar.getByRole('textbox', { name: '小时', exact: true }).fill(hour)
   await calendar.getByRole('textbox', { name: '分钟', exact: true }).fill(minute)
   await calendar.getByRole('button', { name: '选好时间' }).click()

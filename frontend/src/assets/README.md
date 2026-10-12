@@ -1,5 +1,12 @@
 # GoalPilot decorative assets
 
+## Small pixel dioramas — October 2026 additions
+
+Three new transparent assets (pocket garden, flower kiosk, tram stop) are used in
+the workspace, ToDo, task inspector and goal library. See the
+[asset paths, encoding details and complete final prompts](2026-10-12-decorations.md).
+The older scene inventory below records the preceding theme iterations.
+
 ## Pixel town, nature and railway — current theme
 
 Rebalanced on 2026-09-14 by reusing the existing five assets: the login scene

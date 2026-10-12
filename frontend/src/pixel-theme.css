@@ -24,7 +24,7 @@
 #app .date-copy strong { color: var(--ink); }
 #app .current-user i { color: #fff6dc; background: #738e78; border-radius: 2px; font-family: var(--pixel); font-style: normal; }
 #app .workspace-content:not(.session-content) { width: min(1620px, calc(100% - 72px)); padding-top: 26px; }
-#app .create-dashboard { width: min(1440px, 100%); margin-top: 0; }
+#app .create-dashboard { width: 100%; margin-top: 0; }
 
 /* Ticket-like cards: hard shadows, perforations, restrained semantic colors. */
 #app .recent-start { margin-top: 26px; }
@@ -88,7 +88,6 @@
 #app .asked-question { background: #e4eadb; border: 1px solid #c6d3bd; box-shadow: 2px 2px 0 #b8c5b729; }
 #app .task-handoff { background: #f3ecd8; border-color: #d7c8a0; }
 #app .chat-dock .suggestions button { background: #e6eade; border: 1px solid #c5d0c2; }
-#app .chat-disclaimer { color: #667366; }
 
 /* Manual workspace: stop numbers, segmented progress and precise checkbox rows. */
 #app .execution-progress { background: #e7ecdf; border: 1px solid #c2cfb8; padding: 16px 18px; }

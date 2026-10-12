@@ -2,6 +2,8 @@ package com.qijx.goalpilot.task.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,11 +15,13 @@ import com.qijx.goalpilot.auth.security.CurrentUserId;
 import com.qijx.goalpilot.task.dto.TaskCreateRequest;
 import com.qijx.goalpilot.task.dto.TaskPageResponse;
 import com.qijx.goalpilot.task.dto.TaskResponse;
+import com.qijx.goalpilot.task.dto.TaskUpdateRequest;
 import com.qijx.goalpilot.task.service.TaskService;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
 
 @RestController
 @RequestMapping("/api/tasks")
@@ -46,5 +50,14 @@ public class TaskController {
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) long size
     ){
         return taskService.findMyTasks(userId, page, size);
+    }
+
+    @PatchMapping("/{taskId}")
+    public TaskResponse updateTask(
+        @CurrentUserId Long userId,
+        @PathVariable @Positive Long taskId,
+        @Valid @RequestBody TaskUpdateRequest request
+    ){
+        return taskService.updateTask(userId, taskId, request);
     }
 }

@@ -116,11 +116,10 @@ onBeforeUnmount(() => { requestNumber++ })
           <div class="welcome-signal"><AgentSignal /><div><span class="welcome-eyebrow">GOALPILOT · THINKING SPACE</span><span class="agent-caption">方向在对话里，进展在每一步里。</span></div><img class="welcome-station" :src="courtyardArtwork" alt="" width="512" height="439" aria-hidden="true" /></div>
           <h2 ref="heading" tabindex="-1">我们从这件事聊起。</h2>
           <div class="welcome-context"><span>正在关注的目标</span><p class="welcome-goal">{{ goal.goalText }}</p></div>
-          <p>聊聊下一步怎么做，或一起确认任务的完成标准。<br />需要直接记录进展时，打开右侧的任务清单。</p>
           <div class="welcome-actions">
-            <button v-if="['DRAFT', 'NEEDS_CLARIFICATION'].includes(goal.status)" type="button" :disabled="actionBusy" @click="$emit('analyze')">✦ {{ goal.status === 'DRAFT' ? '开始分析目标' : '重新分析并继续澄清' }} <small>AI 分析流程</small></button>
-            <button v-else-if="goal.status === 'READY_TO_PLAN'" type="button" :disabled="actionBusy" @click="$emit('generate')">↗ 生成计划草稿 <small>手动发起</small></button>
-            <button v-else type="button" @click="$emit('open-plan')">☷ 打开计划与任务 <small>手动操作</small></button>
+            <button v-if="['DRAFT', 'NEEDS_CLARIFICATION'].includes(goal.status)" type="button" :disabled="actionBusy" @click="$emit('analyze')">✦ {{ goal.status === 'DRAFT' ? '开始分析目标' : '重新分析并继续澄清' }}</button>
+            <button v-else-if="goal.status === 'READY_TO_PLAN'" type="button" :disabled="actionBusy" @click="$emit('generate')">↗ 生成计划草稿</button>
+            <button v-else type="button" @click="$emit('open-plan')">☷ 打开计划与任务</button>
           </div>
         </div>
         <article v-for="(entry, index) in entries" :key="index" :ref="element => { if (index === entries.length - 1 && !busy) latestEntry = element }" class="question-entry">
@@ -130,13 +129,13 @@ onBeforeUnmount(() => { requestNumber++ })
         </article>
         <article v-if="busy" ref="latestEntry" class="question-entry pending-entry">
           <div class="asked-question"><span>你</span><p>{{ pendingQuestion }}</p></div>
-          <div class="assistant-thinking" role="status"><AgentSignal active /><p>正在准备回答<i></i><i></i><i></i></p><small>涉及计划的问题会查询当前正式版本。</small></div>
+          <div class="assistant-thinking" role="status"><AgentSignal active /><p>正在准备回答<i></i><i></i><i></i></p></div>
         </article>
       </div>
     </div>
     <span class="sr-only" role="status" aria-live="polite">{{ !busy && entries.length ? `已收到第 ${entries.length} 条回答，可在本次问答记录中查看。` : '' }}</span>
     <div class="chat-dock">
-      <div class="chat-manual-tools"><span>需要直接操作？</span><button type="button" @click="$emit('new-task')">＋ 记一件事</button><button type="button" @click="$emit('open-plan')">☷ 查看清单</button></div>
+      <div class="chat-manual-tools"><button type="button" @click="$emit('new-task')">＋ 记一件事</button><button type="button" @click="$emit('open-plan')">☷ 查看清单</button></div>
       <div v-if="!question.trim() && !busy && !unavailable" class="suggestions" aria-label="提问灵感">
         <button v-for="suggestion in suggestions" :key="suggestion.title" type="button" @click="chooseSuggestion(suggestion.message)"><span aria-hidden="true">{{ suggestion.icon }}</span>{{ suggestion.title }}</button>
       </div>
@@ -144,17 +143,16 @@ onBeforeUnmount(() => { requestNumber++ })
         <div v-if="taskSuggestion" class="task-handoff" role="group" aria-label="来自任务清单的问题"><div><span>来自任务清单 · 原输入已保留</span><p>{{ taskSuggestion.title }}</p></div><button type="button" :disabled="busy || unavailable" @click="useTaskSuggestion">使用任务问题</button><button type="button" class="handoff-dismiss" aria-label="保留原输入，忽略任务问题" @click="session.taskSuggestion = null">×</button></div>
         <div v-if="error" class="assistant-error" role="alert"><p>{{ error }}</p><button v-if="unavailable" type="button" @click="$emit('open-library')">返回目标库 ↗</button></div>
         <label for="assistant-question" class="sr-only">向 GoalPilot 提问</label>
-        <textarea id="assistant-question" ref="input" v-model="question" rows="2" maxlength="2000" :disabled="busy || unavailable" aria-describedby="assistant-question-hint" placeholder="向 GoalPilot 提问，聊聊这个目标…"></textarea>
-        <div class="question-actions"><span class="composer-mode"><AgentSignal :active="busy" /> Agent 对话 <small>只读</small></span><div><span class="question-count">{{ question.length }} / 2000</span><button type="submit" :disabled="!validQuestion || busy || unavailable" :aria-label="busy ? '等待回答' : '发送问题'"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><g v-if="busy"><circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/></g><path v-else d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div>
+        <textarea id="assistant-question" ref="input" v-model="question" rows="2" maxlength="2000" :disabled="busy || unavailable" placeholder="向 GoalPilot 提问，聊聊这个目标…"></textarea>
+        <div class="question-actions"><span class="composer-mode"><AgentSignal :active="busy" /> Agent 对话</span><div><span class="question-count">{{ question.length }} / 2000</span><button type="submit" :disabled="!validQuestion || busy || unavailable" :aria-label="busy ? '等待回答' : '发送问题'"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><g v-if="busy"><circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/></g><path v-else d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div>
       </form>
-      <p id="assistant-question-hint" class="chat-disclaimer">每次提问独立处理，不携带上文；不会修改计划或任务。<span>本次登录内保留问答，刷新后清空。</span></p>
     </div>
   </section>
 </template>
 
 <style scoped>
 .goal-assistant-view { height: 100%; min-height: 0; display: flex; flex-direction: column; font-family: var(--text-cn); background: radial-gradient(ellipse at 55% 28%, color-mix(in srgb, var(--canvas-soft) 24%, transparent), transparent 66%); }
-.chat-manual-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }.chat-manual-tools > span { margin-right: auto; color: var(--ink-500); font-size: 10px; }.chat-manual-tools button { padding: 6px 9px; border: 1px solid var(--line); border-radius: 2px; color: var(--accent); background: var(--paper); font-size: 11px; }.chat-manual-tools button:hover { background: var(--canvas-soft); }
+.chat-manual-tools { display: flex; justify-content: flex-end; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }.chat-manual-tools button { padding: 6px 9px; border: 1px solid var(--line); border-radius: 2px; color: var(--accent); background: var(--paper); font-size: 11px; }.chat-manual-tools button:hover { background: var(--canvas-soft); }
 .conversation { flex: 1; min-height: 0; overflow-y: auto; padding: 28px 28px 16px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; overscroll-behavior: contain; }
 .chat-column { width: min(100%, 800px); min-height: 100%; margin: 0 auto; display: flex; flex-direction: column; justify-content: flex-start; }
 .assistant-welcome { margin-block: auto; padding: 18px 0 30px; }
@@ -173,7 +171,7 @@ onBeforeUnmount(() => { requestNumber++ })
 .question-form { padding: 18px 20px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--agent-input-background); box-shadow: var(--agent-input-shadow); transition: box-shadow .2s, border-color .2s; }.question-form:focus-within { border-color: var(--line-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--shadow-color) 25%, transparent), 0 8px 26px color-mix(in srgb, var(--shadow-color) 4%, transparent); }
 textarea { display: block; width: 100%; min-height: 60px; max-height: 160px; padding: 0; resize: vertical; border: 0; outline: none; background: transparent; color: var(--ink-700); font-size: 15px; line-height: 1.9; }textarea:focus-visible { outline: none; }textarea::placeholder { color: var(--ink-500); }
 .question-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; }.composer-mode { display: flex; align-items: center; gap: 7px; color: var(--ink-500); font-size: 11px; }.composer-mode i { font-size: 19px; font-style: normal; }.composer-mode small { padding: 2px 6px; background: var(--canvas-soft); border-radius: 4px; color: var(--ink-500); font-size: 10px; }.question-actions > div { display: flex; align-items: center; gap: 12px; }.question-count { color: var(--ink-500); font-size: 10px; font-variant-numeric: tabular-nums; }.question-actions button { display: grid; place-items: center; width: 35px; height: 35px; padding: 0; color: white; border: 0; border-radius: 50%; background: var(--accent); font-size: 22px; }.question-actions button:hover:not(:disabled) { transform: translateY(-2px); background: var(--accent); }.question-actions button:disabled { color: var(--ink-500); background: var(--canvas-soft); }
-.chat-disclaimer { margin: 11px 0 0; text-align: center; color: var(--ink-500); font-size: 10px; line-height: 1.8; }.chat-disclaimer > span { margin-left: 5px; }
+
 .assistant-error { margin-bottom: 15px; padding: 10px 13px; border-radius: var(--radius-sm); color: #965565; background: #f9ebef; font-size: 12px; line-height: 1.8; }.assistant-error p { margin: 0; }.assistant-error button { margin-top: 5px; padding: 0; border: 0; background: none; color: #874657; font-size: 12px; }
 .question-actions button svg { width: 21px; height: 21px; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }.question-actions .agent-signal { width: 25px; height: 25px; }.question-actions button { background: linear-gradient(145deg, var(--accent-mid), var(--accent)); box-shadow: 0 3px 7px color-mix(in srgb, var(--shadow-color) 15%, transparent); border-radius: var(--radius-sm); width: 38px; height: 38px; }.question-actions button:disabled { box-shadow: none; }
 .task-handoff { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -3px -4px 14px; padding: 10px 12px; border-radius: var(--radius-sm); background: linear-gradient(110deg, var(--canvas-soft), #edf3f1); }.task-handoff > div { min-width: 0; flex: 1; }.task-handoff > div > span { font-size: 10px; color: var(--ink-500); }.task-handoff p { margin: 5px 0 0; max-height: 48px; overflow-y: auto; color: var(--ink-700); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }.task-handoff button { min-height: 30px; padding: 5px 9px; border: 0; border-radius: var(--radius-sm); color: var(--ink-700); background: #fffc; font-size: 11px; }.task-handoff .handoff-dismiss { width: 26px; padding: 0; font-size: 19px; background: transparent; }.task-handoff button:disabled { opacity: .45; }
@@ -182,5 +180,5 @@ textarea { display: block; width: 100%; min-height: 60px; max-height: 160px; pad
 @media(max-width: 1500px) { .welcome-trajectory { width: 115px; opacity: .2; } }
 @media(max-width: 620px) { .welcome-signal { margin-bottom: 15px; gap: 7px; }.welcome-signal > .agent-signal { width: 85px; height: 85px; }.welcome-trajectory { display: none; }.welcome-context { padding: 12px 14px; }.assistant-welcome .welcome-goal { font-size: 13px; }.agent-caption { font-size: 10px; } }
 @keyframes thinking { to { opacity: .25; transform: translateY(-3px); } }@keyframes answer-in { from { opacity: 0; transform: translateY(7px); } }
-@media(max-width: 620px) { .conversation { padding: 22px 20px 10px; }.assistant-welcome { padding: 15px 0 25px; }.assistant-welcome .welcome-goal { font-size: 13px; max-height: 130px; }.chat-dock { padding: 0 14px 12px; }.question-form { padding: 14px; border-radius: var(--radius-sm); }.chat-disclaimer { font-size: 9px; }.chat-disclaimer > span { display: block; }.suggestions { gap: 6px; }.suggestions button { padding: 6px 9px; font-size: 10px; }.question-actions .question-count { font-size: 9px; }.answer-heading { flex-direction: column; align-items: flex-start; } }
+@media(max-width: 620px) { .conversation { padding: 22px 20px 10px; }.assistant-welcome { padding: 15px 0 25px; }.assistant-welcome .welcome-goal { font-size: 13px; max-height: 130px; }.chat-dock { padding: 0 14px 12px; }.question-form { padding: 14px; border-radius: var(--radius-sm); }.suggestions { gap: 6px; }.suggestions button { padding: 6px 9px; font-size: 10px; }.question-actions .question-count { font-size: 9px; }.answer-heading { flex-direction: column; align-items: flex-start; } }
 </style>

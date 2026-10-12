@@ -15,9 +15,8 @@ const counts = computed(() => taskStatusCounts(props.tasks))
     </div>
     <div class="execution-track" role="progressbar" aria-label="任务完成进度" :aria-valuenow="progress.done" :aria-valuemax="progress.total || 1" :aria-valuemin="0" :aria-valuetext="`已完成 ${progress.done} 项，共 ${progress.total} 项`"><i :style="{ width: progress.percent + '%' }"></i></div>
     <div v-if="!compact" class="progress-legend"><span><i class="todo"></i>待开始 <b>{{ counts.TODO }}</b></span><span><i class="doing"></i>进行中 <b>{{ counts.IN_PROGRESS }}</b></span><span><i class="done"></i>已完成 <b>{{ counts.DONE }}</b></span><span v-if="counts.SKIPPED"><i class="skipped"></i>已跳过 <b>{{ counts.SKIPPED }}</b></span><span v-if="counts.UNKNOWN">待确认 <b>{{ counts.UNKNOWN }}</b></span></div>
-    <p v-if="!editable" class="progress-note">目标当前不在进行中，任务仅供查看。</p>
-    <p v-else-if="progress.done === progress.total && progress.total" class="progress-note">全部任务已完成，不会自动更改目标状态。</p>
-    <p v-else-if="progress.skipped" class="progress-note">{{ progress.skipped }} 项已跳过，不计入已完成。</p>
+    <p v-if="progress.done === progress.total && progress.total" class="progress-note">全部任务已完成</p>
+    <p v-else-if="progress.skipped" class="progress-note">{{ progress.skipped }} 项已跳过</p>
   </section>
 </template>
 

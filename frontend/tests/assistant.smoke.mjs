@@ -87,8 +87,8 @@ try {
   await settle()
   assert.equal(count(), 0, 'Opening the assistant must not spend a model request')
   assert.match(await page.locator('.session-title').innerText(), new RegExp(goal.goalText))
-  assert.match(await page.locator('.chat-disclaimer').innerText(), /不会修改计划或任务/)
-  assert.match(await page.locator('.chat-disclaimer').innerText(), /不携带上文/)
+  assert.equal(await page.locator('.chat-disclaimer').count(), 0, 'No permanent instructions below the Agent composer')
+  assert.equal(await page.locator('textarea[aria-describedby="assistant-question-hint"]').count(), 0, 'No dangling hint reference')
   await screenshot('assistant-empty-1600')
 
   await input.fill('   \n  ')

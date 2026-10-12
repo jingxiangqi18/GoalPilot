@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import collectionArtwork from '../../assets/goalpilot-pixel-courtyard-v1.webp'
+import PixelAccent from './PixelAccent.vue'
 import GoalStatusBadge from './GoalStatusBadge.vue'
 import DateStamp from './DateStamp.vue'
 import { goalPresentation, priorityLabel } from '../../utils/goalPresentation'
@@ -43,7 +43,6 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
       <div class="hero-copy">
         <span class="eyebrow"><i aria-hidden="true"></i>YOUR JOURNEY BOARD</span>
         <h1>每一个目标，<em>都有值得抵达的下一站。</em></h1>
-        <p>打开一个目标，继续和 GoalPilot 梳理下一步；资料、计划与任务都在同一个空间。</p>
         <dl class="collection-stats" aria-label="目标概览">
           <div><dt>{{ statusFilter === 'ALL' ? '累计目标' : filterLabel + '目标' }}</dt><dd>{{ loading || errorMessage ? '—' : total }}<small>个</small></dd></div>
           <div><dt>本页待规划</dt><dd>{{ loading || errorMessage ? '—' : readyCount }}<small>个</small></dd></div>
@@ -52,7 +51,7 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
       </div>
       <div class="hero-side">
         <div class="collection-art" aria-hidden="true">
-          <img :src="collectionArtwork" alt="" width="512" height="439" />
+          <PixelAccent kind="kiosk" />
         </div>
         <button class="new-goal-button" type="button" :disabled="busy" @click="emit('new-goal')"><span aria-hidden="true">＋</span> 创建新目标 <span aria-hidden="true">↗</span></button>
       </div>
@@ -70,7 +69,6 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
         <div class="filter-tabs" role="group" aria-label="目标状态筛选">
           <button v-for="filter in filters" :key="filter.value" type="button" :class="{ active: statusFilter === filter.value }" :aria-pressed="statusFilter === filter.value" @click="emit('status-change', filter.value)">{{ filter.label }}</button>
         </div>
-        <span class="filter-note">状态筛选覆盖全部目标 · 关键词仅搜索本页</span>
       </div>
 
       <div v-if="errorMessage" class="library-notice" role="alert"><span>!</span><div><strong>目标列表加载失败</strong><p>{{ errorMessage }}</p></div><button type="button" @click="emit('refresh')">重试</button></div>
@@ -99,7 +97,7 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
       </TransitionGroup>
 
       <div v-if="!loading && !errorMessage && !visibleItems.length" class="empty-archive">
-        <img :src="collectionArtwork" alt="" width="112" height="112" />
+        <PixelAccent kind="garden" />
         <span class="section-label">{{ items.length ? 'KEEP EXPLORING' : 'YOUR NEXT CHAPTER' }}</span>
         <h3>{{ search ? '本页没有匹配的目标' : statusFilter !== 'ALL' ? '暂时没有' + filterLabel + '的目标' : total ? '这一页暂时没有目标' : '让第一个想法，在这里落笔' }}</h3>
         <p>{{ search ? '换一个关键词，或清除搜索后查看本页。' : statusFilter !== 'ALL' ? '可以切换状态，查看其他目标。' : total ? '返回第一页，查看最新的目标记录。' : '不必想得周全，一句自然的描述就够了。' }}</p>
@@ -173,7 +171,7 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
 .filter-tabs button { min-height: 34px; padding: 6px 13px; color: var(--ink-500); background: transparent; border: 1px solid transparent; border-radius: var(--radius-sm); font-size: 12px; font-weight: 400; }
 .filter-tabs button:hover { color: var(--ink-700); background: var(--paper); }
 .filter-tabs button.active { color: var(--ink-700); background: var(--canvas-soft); border-color: var(--line); font-weight: 500; box-shadow: inset 0 1px 0 white; }
-.filter-note { color: var(--ink-500); font-size: 12px; white-space: nowrap; }
+
 .goal-grid { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 18px; padding: 24px 28px; }
 .goal-grid.is-empty { padding-block: 0; }
 .goal-card { --card-accent: var(--accent); --card-tint: var(--paper); --card-border: var(--line); position: relative; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border: 0; border-radius: var(--radius-sm); background: linear-gradient(120deg, var(--card-tint), var(--paper)); box-shadow: inset 0 1px 0 #fff, 0 5px 18px color-mix(in srgb, var(--shadow-color) 4%, transparent); transition: transform .25s var(--ease-out), box-shadow .25s; }
@@ -226,7 +224,7 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
 .pagination button:disabled { opacity: .4; }
 .library-hero { background: linear-gradient(115deg, #fafbf5, #edf2e3 70%, #f1eada); border: 1px solid #e4e9dc; box-shadow: 0 6px 22px #25463805; }.library-hero h1 { color: var(--ink); }.library-hero h1 em { color: #658166; }.collection-art img { width: 166px; height: 166px; top: -20px; left: 42px; transform: rotate(0); }.library-hero:hover .collection-art img { transform: translateY(-4px) rotate(3deg); }.note-sheet { display: none; }.art-orbit { border-color: #adbe9e; }.new-goal-button { background: linear-gradient(125deg, var(--accent), var(--accent-deep)); border-color: var(--accent-deep); }.archive-module { border: 1px solid #e3e9dd; background: #fffffff2; }.goal-card { border-radius: var(--radius-sm); border: 1px solid var(--card-border); box-shadow: 0 3px 10px #25463804; }.goal-card.lilac { --card-accent: #647e55; --card-tint: #f1f5e8; --card-border: #dce5cf; }.goal-card > footer { border-top: 1px solid var(--card-border); }.goal-glyph { border-radius: var(--radius-sm); box-shadow: none; transform: none; background: #ffffffe0; }.card-decoration { opacity: .25; }.card-open > strong { font-size: 17px; font-weight: 550; }.card-chapter { margin-top: 18px; }.card-hint { font-size: 12px; color: var(--ink-500); }
 @media (min-width: 1900px) { .goal-grid { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }.card-open { padding: 26px 28px 22px; }.card-open > strong { font-size: 21px; }.card-hint { font-size: 13px; } }
-@media (max-width: 1200px) { .filter-note { display: none; }.collection-stats > div { flex-direction: column; align-items: flex-start; gap: 4px; } }
+@media (max-width: 1200px) { .collection-stats > div { flex-direction: column; align-items: flex-start; gap: 4px; } }
 @media (max-width: 760px) {
   .library-hero { padding: 24px; align-items: flex-start; gap: 12px; }.library-hero h1 { font-size: 24px; }.library-hero h1 em { display: block; }
   .hero-side { width: 170px; align-self: center; }.collection-art { width: 170px; transform: scale(.8); transform-origin: left center; }

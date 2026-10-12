@@ -94,7 +94,7 @@ try {
   assert.match(await page.getByRole('complementary', { name: '任务详情' }).innerText(), /2028年/)
   assert.equal(await receipt('预约一段公园步行').locator('script').count(), 0)
   assert.equal(await page.getByRole('complementary', { name: '任务详情' }).locator('script').count(), 0)
-  assert.match(await page.getByRole('complementary', { name: '任务详情' }).innerText(), /<script>不执行<\/script>/)
+  assert.match(await page.getByRole('complementary', { name: '任务详情' }).getByRole('textbox', { name: '修改任务说明' }).inputValue(), /<script>不执行<\/script>/)
   await shot('inbox-and-agent-1600')
 
   // PlanTask ID 1 and Task ID 1 deliberately collide. Only the former may be patched.
@@ -155,7 +155,7 @@ try {
   await page.reload(); await desk().waitFor()
   await receipt('整理演示视频').waitFor()
   assert.equal(await page.locator('.inbox-task').count(), storedTasks.length, 'Saved tasks return from the API after reload')
-  assert.match(await desk().innerText(), /任务已与账户同步/)
+  assert.equal(await desk().locator('.receipt-scope').count(), 0, 'No persistent backend-capability footnote')
   await start('不应泄露给另一账户')
   hold = new Promise(resolve => { release = resolve })
   await create().click(); await page.waitForFunction(() => document.querySelector('.task-create-form')?.getAttribute('aria-busy') === 'true')

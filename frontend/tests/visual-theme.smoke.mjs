@@ -89,25 +89,55 @@ try {
   assert.deepEqual(JSON.parse(requests.filter(r => r.path.endsWith('/login'))[1].body), { account: 'jakin@example.com', password: 'secret123' })
   for (const [width, height] of [[2560, 1440], [1600, 1050], [1320, 900], [1100, 900], [961, 900], [960, 900], [800, 900], [390, 844], [320, 640]]) {
     await page.setViewportSize({ width, height }); await settle(); await noOverflow('Home overflow ' + width)
-    await page.locator('.garden-art img').evaluate(img => img.decode())
-    await page.locator('.composer-scenery img').evaluate(img => img.decode())
-    assert.ok(await page.locator('.composer-scenery img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-riverside') && img.naturalWidth / img.naturalHeight === 3), 'Home uses a panoramic river city, with room for the landscape')
-    assert.ok(await page.locator('.garden-art img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-station')), 'A compact station illustration complements the river city panorama')
-    assert.ok(await page.locator('.composer-scenery').isVisible(), 'City scene remains visible at ' + width)
+    await page.locator('.station-fragment img').evaluate(img => img.decode())
+    assert.equal(await page.locator('.progress-garden, .composer-scenery').count(), 0, 'No banner or secondary hero competes with the conversation')
+    assert.ok(await page.locator('.station-fragment img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-tram-stop')), 'A small tram stop complements the city and nature scenes')
     assert.equal(await page.locator('.task-desk').count(), 0, 'ToDo has its own page, not a second homepage section')
     const bounds = await page.locator('.writing-card').boundingBox()
     const scenery = await page.locator('.editorial-heading').boundingBox()
     assert.ok(bounds.y >= scenery.y + scenery.height, 'Artwork never covers the composer')
+    const main = await page.locator('.workspace-content').boundingBox()
+    assert.ok(Math.abs(bounds.x + bounds.width / 2 - main.x - main.width / 2) < 2, 'Composer stays centered in the workspace')
+    assert.ok(bounds.y < height * .65, 'The main input is available without scrolling')
+    for (const fragment of await page.locator('.world-fragment, .station-fragment').all()) {
+      if (!await fragment.isVisible()) continue
+      const rect = await fragment.boundingBox()
+      assert.ok(rect.x + rect.width <= bounds.x || rect.x >= bounds.x + bounds.width || rect.y + rect.height <= bounds.y || rect.y >= bounds.y + bounds.height, 'Peripheral art does not overlap the input')
+    }
+    if (width >= 1500) {
+      assert.equal(await page.locator('.world-fragment:visible').count(), 3)
+      for (const name of ['riverside', 'highlands', 'railway']) await page.locator('.world-fragment.' + name + ' img').evaluate(img => img.decode())
+    }
     assert.ok(await page.getByRole('textbox', { name: '我的目标' }).evaluate(el => !getComputedStyle(el).fontFamily.includes('Silkscreen')), 'Chinese prose retains readable sans-serif typography')
     if ([2560, 1600, 390].includes(width)) await shot('home-' + width)
   }
   await page.setViewportSize({ width: 1600, height: 1050 })
   await page.locator('.sidebar-scenery img').evaluate(img => img.decode())
   assert.ok(await page.locator('.sidebar-scenery img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-highlands')))
+  await page.locator('.main-nav').getByRole('button', { name: /待办清单/ }).click()
+  await page.locator('.inbox-empty').waitFor()
+  for (const width of [1600, 390, 320]) {
+    await page.setViewportSize({ width, height: 1000 }); await settle()
+    await noOverflow('Decorated ToDo overflow ' + width)
+    for (const art of await page.locator('.task-desk .pixel-accent').all()) {
+      await art.evaluate(img => img.decode())
+      assert.equal(await art.getAttribute('aria-hidden'), 'true')
+      assert.equal(await art.evaluate(img => getComputedStyle(img).pointerEvents), 'none')
+      const rect = await art.boundingBox()
+      assert.ok(rect.width <= 160, 'Decorations remain compact')
+      for (const button of await page.locator('.task-desk button:visible').all()) {
+        const control = await button.boundingBox()
+        assert.ok(rect.x + rect.width <= control.x || rect.x >= control.x + control.width || rect.y + rect.height <= control.y || rect.y >= control.y + control.height, 'Art does not overlap actions')
+      }
+    }
+    assert.equal(await page.locator('.receipt-scope, .read-only-note').count(), 0)
+    await shot('decorated-todo-' + width)
+  }
+  await page.setViewportSize({ width: 1600, height: 1050 })
   await page.locator('.main-nav').getByRole('button', { name: /我的目标/ }).click()
   await page.locator('.goal-card').first().waitFor(); await settle(); await shot('collection-1600')
   await page.locator('.collection-art img').evaluate(img => img.decode())
-  assert.ok(await page.locator('.collection-art img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-courtyard')), 'The bookshop garden remains part of the balanced visual theme')
+  assert.ok(await page.locator('.collection-art img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-flower-kiosk')), 'The goal library gets a small neighborhood flower kiosk')
   await page.locator('.goal-card').first().getByRole('button', { name: '进入会话' }).click()
   await page.locator('.question-form').waitFor()
   await page.locator('.welcome-station').evaluate(img => img.decode())

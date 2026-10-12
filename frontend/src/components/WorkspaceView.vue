@@ -15,10 +15,11 @@ import { buildGoalText } from '../utils/goalDraft'
 import { usePlanTasks } from '../composables/usePlanTasks'
 import { useTaskInbox } from '../composables/useTaskInbox'
 import TaskDesk from './workspace/TaskDesk.vue'
+import WorkspaceScenery from './workspace/WorkspaceScenery.vue'
 
 const props = defineProps({ user: { type: Object, required: true } })
 defineEmits(['logout'])
-const { stateFor: taskStateFor, submit: submitTask, load: loadTasks } = useTaskInbox()
+const { stateFor: taskStateFor, submit: submitTask, load: loadTasks, editFor: taskEditFor, saveEdit: saveTaskEdit, resetEdit: resetTaskEdit } = useTaskInbox()
 const taskDesk = ref(null)
 
 async function askFromTaskDesk({ goalId, context }) {
@@ -560,18 +561,19 @@ onBeforeUnmount(() => {
       </header>
       <div class="workspace-content" :class="{ 'session-content': activeView === 'session' }">
         <div v-if="activeView === 'create'" class="create-dashboard">
+          <WorkspaceScenery />
           <GoalComposer v-model="goalText" v-model:details="goalDetails" :loading="activeRequest === 'analysis'" :error-title="errorTitle" :error-message="errorMessage" :user-name="user.username" :current-goal-id="activeGoalId" :analyzed="!!result && goalSubmissionText === activeSavedText" @submit="submitGoal" @resume="openGoalDetails(activeGoalId)" @dismiss-error="errorMessage = ''" />
           <RecentGoals :items="recentItems" :loading="recentLoading" :error="recentError" :busy="!!activeRequest" @open="openGoalDetails" @plan="openSavedPlan" @library="navigate('library')" @retry="loadRecentGoals" />
         </div>
-        <TaskDesk v-else-if="activeView === 'tasks'" ref="taskDesk" standalone :state="taskStateFor()" :goals="recentItems" :goals-loading="recentLoading" :goals-error="recentError" @workspace="navigate('create')" @load="loadTasks(taskStateFor(), $event)" @submit="submitTask(taskStateFor())" @library="navigate('library')" @open-goal="openGoalDetails" @updated="syncPlanSnapshot" @ask-assistant="askFromTaskDesk" @retry-goals="loadRecentGoals" />
+        <TaskDesk v-else-if="activeView === 'tasks'" ref="taskDesk" standalone :state="taskStateFor()" :edit-for="taskEditFor" :goals="recentItems" :goals-loading="recentLoading" :goals-error="recentError" @save-edit="saveTaskEdit" @reset-edit="resetTaskEdit" @workspace="navigate('create')" @load="loadTasks(taskStateFor(), $event)" @submit="submitTask(taskStateFor())" @library="navigate('library')" @open-goal="openGoalDetails" @updated="syncPlanSnapshot" @ask-assistant="askFromTaskDesk" @retry-goals="loadRecentGoals" />
         <template v-else-if="activeView === 'session'">
           <div v-if="detailLoading || !selectedGoal" class="session-loading">
             <span aria-hidden="true">✧</span><h1>{{ sessionError ? '暂时无法打开这个目标' : '正在打开目标会话' }}</h1>
-            <p v-if="sessionError" role="alert">{{ sessionError }}</p><p v-else role="status">取回目标信息，不会自动生成或修改计划。</p>
+            <p v-if="sessionError" role="alert">{{ sessionError }}</p>
             <div><button type="button" @click="navigate('library')">返回目标库</button><button v-if="sessionError" type="button" @click="openGoalDetails(sessionId)">重新读取</button></div>
           </div>
           <GoalSessionView v-else :key="selectedGoal.id" ref="sessionView" :goal="selectedGoal" :session="sessionFor(selectedGoal.id)" :initial-panel="sessionPanel" :busy="!!activeRequest" :has-draft="availableDraftGoalId === selectedGoal.id" @back="reviewGoalState" @analyze="continueGoal(selectedGoal)" @generate="generateGoalPlan(selectedGoal)" @updated="syncPlanSnapshot" @goal-updated="syncGoalDetails" @edit-busy="setGoalEditBusy" @new-task="taskStateFor(selectedGoal.id).open = true">
-            <template #tasks="{ active }"><TaskDesk :state="taskStateFor(selectedGoal.id)" :goal="selectedGoal" :goals="recentItems" :active="active" @load="loadTasks(taskStateFor(selectedGoal.id), $event)" @submit="submitTask(taskStateFor(selectedGoal.id))" @inbox="navigate('tasks')" @library="navigate('library')" @open-goal="openGoalDetails" /></template>
+            <template #tasks="{ active }"><TaskDesk :state="taskStateFor(selectedGoal.id)" :edit-for="taskEditFor" :goal="selectedGoal" :goals="recentItems" :active="active" @save-edit="saveTaskEdit" @reset-edit="resetTaskEdit" @load="loadTasks(taskStateFor(selectedGoal.id), $event)" @submit="submitTask(taskStateFor(selectedGoal.id))" @inbox="navigate('tasks')" @library="navigate('library')" @open-goal="openGoalDetails" /></template>
             <template v-if="planningMode" #conversation>
               <PlanningConversation v-model:answers="clarificationAnswers" :goal="selectedGoal" :result="result" :plan="plan" :active-request="activeRequest" :error-message="errorMessage" :error-title="errorTitle" @analyze="submitGoal" @clarify="submitClarification" @generate-plan="createPlan" @open-plan="sessionView?.openPanel('plan')" @open-info="sessionView?.openPanel('info')" />
             </template>
@@ -595,7 +597,9 @@ onBeforeUnmount(() => {
 .current-user { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--ink-500); font-size: 11px; }.current-user i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--ink-500); background: var(--canvas-soft); font-size: 13px; font-style: normal; }
 .workspace-content { position: relative; z-index: 1; width: min(1800px, calc(100% - 72px)); margin-inline: auto; padding: 32px 0; flex: 1; min-height: 0; }
 .workspace-shell.in-session, .in-session .workspace-main { height: 100dvh; min-height: 0; overflow: hidden; }.workspace-content.session-content { width: 100%; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
-.create-dashboard { width: min(1440px, 100%); margin: clamp(15px, 3.5vh, 48px) auto 25px; animation: workspace-arrive .38s var(--ease-out) both; }
+.create-dashboard { position: relative; isolation: isolate; width: 100%; min-height: calc(100dvh - 165px); margin: 0 auto 25px; padding: clamp(52px, 9vh, 120px) 0 48px; animation: workspace-arrive .38s var(--ease-out) both; }
+.create-dashboard > :not(.workspace-scenery) { position: relative; z-index: 1; width: min(900px, 100%); margin-inline: auto; }
+@media(min-width: 1500px) { .create-dashboard > :not(.workspace-scenery) { width: min(920px, calc(100% - 420px)); } }
 .topbar { position: relative; z-index: 2; background: #f7f8f1c9; backdrop-filter: blur(12px); }.date-number { color: var(--accent-deep); background: #e4ebda; }.date-copy strong { color: var(--ink-700); font-size: 11px; }.current-user i { background: #eee4d3; color: #786044; border-radius: var(--radius-sm); }
 @keyframes workspace-arrive { from { opacity: 0; transform: translateY(8px); } }
 .session-loading { margin: auto; max-width: 550px; padding: 35px; text-align: center; }.session-loading > span { color: var(--ink-500); font-size: 45px; }.session-loading h1 { margin: 15px 0; font-size: 22px; font-weight: 500; }.session-loading p { font-size: 13px; color: var(--ink-500); line-height: 1.8; }.session-loading button { margin: 10px 5px; padding: 10px 15px; border: 0; border-radius: var(--radius-sm); color: var(--ink-500); background: var(--canvas-soft); font-size: 12px; }
@@ -604,4 +608,5 @@ onBeforeUnmount(() => {
 @media(max-width: 1050px) { .workspace-main { margin-left: 200px; } }
 @media(max-width: 800px) { .workspace-main { margin-left: 0; }.topbar { height: 56px; padding-inline: 17px; }.topbar-context { display: none; }.mobile-nav { display: flex; gap: 8px; }.mobile-nav button { padding: 7px 11px; border: 0; border-radius: var(--radius-sm); background: var(--canvas-soft); color: var(--ink-500); font-size: 11px; }.current-user > span { display: none; }.topbar-right { gap: 10px; }.workspace-content { width: calc(100% - 32px); padding-top: 20px; }.create-dashboard { margin-top: 20px; } }
 @media(max-width: 480px) { .topbar-date { display: none; }.create-dashboard { margin-top: 10px; } }
+@media(max-width: 620px) { .create-dashboard { padding: 48px 0 24px; } }
 </style>

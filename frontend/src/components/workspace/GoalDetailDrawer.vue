@@ -100,7 +100,7 @@ onUnmounted(() => {
           </ol>
           <p>{{ state.hint }}</p>
         </section>
-        <button type="button" class="detail-assistant" :disabled="busy" @click="emit('ask-assistant', goal)"><span class="assistant-spark" aria-hidden="true">✧</span><span><strong>询问目标助手</strong><small>了解正式计划、任务与完成标准 · 只读问答</small></span><i aria-hidden="true">↗</i></button>
+        <button type="button" class="detail-assistant" :disabled="busy" @click="emit('ask-assistant', goal)"><span class="assistant-spark" aria-hidden="true">✧</span><span><strong>询问目标助手</strong></span><i aria-hidden="true">↗</i></button>
         <div class="detail-timestamp"><DateStamp :value="goal.updatedAt || goal.createdAt" :label="goal.updatedAt ? '最近更新' : '记录时间'" compact /></div>
         <div class="detail-endnote" aria-hidden="true"><span></span><i>✧</i><small>每一小步，都算数。</small><span></span></div>
       </div>

@@ -118,22 +118,21 @@ onBeforeUnmount(() => { requestNumber++; if (pending.value) emit('busy-change', 
     <fieldset :disabled="disabled">
       <div v-if="canEditText" class="edit-field">
         <label for="edit-goal-text">目标原文 <small>草稿可修改 · {{ values.goalText.length }} / 1000</small></label>
-        <textarea id="edit-goal-text" v-model="values.goalText" rows="4" maxlength="1000" :aria-invalid="!!changes.errors.goalText" :aria-describedby="changes.errors.goalText ? 'edit-text-help' : 'goal-edit-help'" />
+        <textarea id="edit-goal-text" v-model="values.goalText" rows="4" maxlength="1000" :aria-invalid="!!changes.errors.goalText" :aria-describedby="changes.errors.goalText ? 'edit-text-help' : undefined" />
         <p v-if="changes.errors.goalText" id="edit-text-help" class="field-error">{{ changes.errors.goalText }}</p>
       </div>
       <details v-if="retainedText" class="retained-text"><summary>查看未保存的原文输入</summary><p>{{ values.goalText }}</p></details>
       <div class="edit-field">
-        <label for="edit-goal-priority">优先级 <small>安排先后顺序</small></label>
-        <PixelSelect id="edit-goal-priority" v-model="values.priority" label="选择目标优先级" :options="priorityOptions" :disabled="disabled" :active="active" :invalid="!!changes.errors.priority" :described-by="changes.errors.priority ? 'edit-priority-help' : 'goal-edit-help'" />
+        <label for="edit-goal-priority">优先级</label>
+        <PixelSelect id="edit-goal-priority" v-model="values.priority" label="选择目标优先级" :options="priorityOptions" :disabled="disabled" :active="active" :invalid="!!changes.errors.priority" :described-by="changes.errors.priority ? 'edit-priority-help' : undefined" />
         <p v-if="changes.errors.priority" id="edit-priority-help" class="field-error">{{ changes.errors.priority }}</p>
       </div>
       <div class="edit-field">
         <label for="edit-goal-deadline">期待完成 <small>选填 · 精确到分钟</small></label>
-        <PixelDateTimePicker id="edit-goal-deadline" v-model="values.deadline" :disabled="disabled" :active="active" :clearable="!baseline.deadline" :invalid="!!changes.errors.deadline" :described-by="changes.errors.deadline ? 'edit-deadline-help' : 'goal-edit-help'" />
+        <PixelDateTimePicker id="edit-goal-deadline" v-model="values.deadline" :disabled="disabled" :active="active" :clearable="!baseline.deadline" :invalid="!!changes.errors.deadline" :described-by="changes.errors.deadline ? 'edit-deadline-help' : undefined" />
         <p v-if="changes.errors.deadline" id="edit-deadline-help" class="field-error">{{ changes.errors.deadline }}</p>
       </div>
     </fieldset>
-    <p id="goal-edit-help" class="edit-rule">直接调整上方资料，点击保存后生效。已设置的优先级和时间暂不支持清空。</p>
     <slot />
     <div v-if="error" class="edit-feedback error" role="alert" tabindex="-1"><p>{{ error }}</p><button v-if="blocked" type="button" :disabled="disabled" @click="reload">{{ pending ? '正在读取…' : '重新读取，保留输入' }}</button></div>
     <p v-if="notice" class="edit-feedback" :class="{ 'info-saved': saved }" role="status">{{ notice }}</p>
@@ -144,7 +143,7 @@ onBeforeUnmount(() => { requestNumber++; if (pending.value) emit('busy-change', 
 <style scoped>
 .goal-edit-form { margin: 20px 0; }
 fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }.edit-field { padding: 17px 0; border-top: 1px solid var(--line); }label { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; color: var(--ink-700); font-size: 12px; font-weight: 600; }label small { color: var(--ink-500); font-size: 10px; font-weight: 400; }
-input, textarea { display: block; min-width: 0; width: 100%; padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #f7f8f0; color: var(--ink); font: inherit; font-size: 14px; line-height: 1.8; transition: background .15s, box-shadow .15s; }textarea { resize: vertical; min-height: 105px; max-height: 280px; }input:focus, textarea:focus { background: var(--paper); outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 3px 3px 0 #b8cbbb55; }[aria-invalid="true"] { border-color: var(--danger); }.edit-field p, .edit-rule { margin: 9px 0 0; color: var(--ink-500); font-size: 11px; line-height: 1.8; }.edit-rule { margin: 0 0 20px; }.edit-field .field-error { color: var(--danger); }.deadline-preview { margin-top: 10px; }.retained-text { margin: 0 0 15px; color: var(--ink-600); font-size: 12px; }.retained-text p { white-space: pre-wrap; overflow-wrap: anywhere; }
+input, textarea { display: block; min-width: 0; width: 100%; padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #f7f8f0; color: var(--ink); font: inherit; font-size: 14px; line-height: 1.8; transition: background .15s, box-shadow .15s; }textarea { resize: vertical; min-height: 105px; max-height: 280px; }input:focus, textarea:focus { background: var(--paper); outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 3px 3px 0 #b8cbbb55; }[aria-invalid="true"] { border-color: var(--danger); }.edit-field p { margin: 9px 0 0; color: var(--ink-500); font-size: 11px; line-height: 1.8; }.edit-field .field-error { color: var(--danger); }.deadline-preview { margin-top: 10px; }.retained-text { margin: 0 0 15px; color: var(--ink-600); font-size: 12px; }.retained-text p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .edit-feedback { margin: 14px 0; padding: 12px; color: var(--ink-700); background: var(--accent-soft); font-size: 12px; line-height: 1.8; }.edit-feedback.error { color: var(--danger); background: var(--danger-soft); }.edit-feedback p { margin: 0 0 10px; }button { min-height: 36px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); color: var(--ink-700); background: var(--paper); font: inherit; font-size: 12px; }button:disabled { opacity: .5; cursor: not-allowed; }button:hover:not(:disabled) { background: var(--accent-soft); }.save-goal { color: var(--paper); background: var(--accent-deep); border-color: var(--accent-deep); box-shadow: 2px 2px 0 #afc3b2; }.save-goal:hover:not(:disabled) { background: var(--accent); }
 footer { position: sticky; z-index: 2; bottom: -22px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; padding: 13px 0; border-top: 1px dashed var(--line-strong); background: var(--paper); }footer > span { display: flex; align-items: center; gap: 7px; color: var(--ink-500); font-size: 11px; }footer i { width: 5px; height: 5px; background: #79947d; }footer i.dirty { background: var(--warm-accent); }footer > div { display: flex; gap: 8px; margin-left: auto; }
 @media(prefers-reduced-motion: reduce) { input, textarea { transition: none; } }

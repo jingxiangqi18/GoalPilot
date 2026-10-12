@@ -162,7 +162,7 @@ function focusStageHeading() {
         <p class="summary-lead">{{ summaryPoints[0] || '这份计划暂未提供整体说明，可以直接查看上方的阶段路线。' }}</p>
         <div :id="instanceId + '-summary'" class="summary-disclosure" :class="{ open: summaryOpen }" :inert="!summaryOpen" :aria-hidden="!summaryOpen"><div><ul class="summary-points"><li v-for="(point, index) in summaryPoints.slice(1)" :key="index">{{ point }}</li></ul></div></div>
         <button v-if="summaryPoints.length > 1" type="button" class="summary-toggle" :aria-expanded="summaryOpen" :aria-controls="instanceId + '-summary'" @click="summaryOpen = !summaryOpen">{{ summaryOpen ? '收起完整思路' : '展开完整思路' }}<svg :class="{ open: summaryOpen }" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button>
-        <button v-if="plan.status === 'ACTIVE'" type="button" class="plan-assistant-button" :disabled="taskBusy || !!activeRequest" @click="$emit('ask-assistant')"><span aria-hidden="true">✧</span> 询问目标助手 <small>只读问答</small><span aria-hidden="true">↗</span></button>
+        <button v-if="plan.status === 'ACTIVE'" type="button" class="plan-assistant-button" :disabled="taskBusy || !!activeRequest" @click="$emit('ask-assistant')"><span aria-hidden="true">✧</span> 询问目标助手 <span aria-hidden="true">↗</span></button>
       </div>
       <svg class="summary-ornament" viewBox="0 0 100 64" fill="none" aria-hidden="true"><path d="M5 51c29 0 10-39 39-39s-2 35-14 17S62 4 90 13M63 53c7-12 16-14 30-11" /><circle cx="5" cy="51" r="3" /><path d="M81 24v8m-4-4h8" /></svg>
     </article>

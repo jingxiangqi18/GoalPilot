@@ -29,7 +29,6 @@ defineEmits(['retry', 'cancel', 'dismiss-error'])
     </div>
 
     <footer>
-      <span><i></i>计划生成后会自动保存，无需重复填写目标信息</span>
       <button type="button" @click="$emit('cancel')">返回新目标</button>
     </footer>
   </section>
@@ -82,8 +81,6 @@ defineEmits(['retry', 'cancel', 'dismiss-error'])
 .retry-button { min-height: 38px; padding: 0 14px; flex: 0 0 auto; color: var(--paper); background: var(--danger); border: 1px solid var(--danger); border-radius: var(--radius-sm); font-size: 11px; font-weight: 700; }
 
 .launch-panel footer { position: relative; z-index: 1; grid-column: 1 / -1; align-self: end; padding-top: 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); }
-.launch-panel footer > span { display: flex; align-items: center; gap: 8px; color: var(--ink-500); font-size: 10px; }
-.launch-panel footer > span i { width: 7px; height: 7px; background: var(--moss-600); border-radius: 50%; box-shadow: 0 0 0 4px var(--moss-100); }
 .launch-panel footer button { padding: 8px 2px; color: var(--ink-600); background: transparent; border: 0; font-size: 11px; font-weight: 700; }
 .launch-panel footer button:hover { color: var(--coral-700); }
 

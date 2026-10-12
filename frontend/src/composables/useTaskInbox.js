@@ -1,11 +1,13 @@
 import { onBeforeUnmount, reactive } from 'vue'
-import { createTask, getTasks } from '../api/task'
+import { createTask, getTasks, updateTask } from '../api/task'
 import { emptyTaskDraft, taskCreateChanges } from '../utils/taskDraft'
 import { TASK_PAGE_SIZE } from '../utils/taskPage'
+import { taskEditValues, taskUpdateChanges } from '../utils/taskUpdate'
 
 export function useTaskInbox() {
   // Drafts and page positions are isolated by view; private data stays in memory.
   const states = reactive({})
+  const edits = reactive({})
   const readVersions = new WeakMap()
   let disposed = false
   function stateFor(goalId = null) {
@@ -35,10 +37,73 @@ export function useTaskInbox() {
         throw new Error('任务页数已变化，请重新读取。')
       }
       Object.assign(list, data, { loaded: true })
+      for (const task of data.items) mergeEdit(task)
     } catch (error) {
       if (current()) list.error = error.message || '任务列表暂时无法读取，请稍后重试。'
     } finally {
       if (current()) list.loading = false
+    }
+  }
+  function editFor(task) {
+    if (!edits[task.id]) edits[task.id] = {
+      baseline: { ...task }, values: taskEditValues(task), pending: false,
+      blocked: false, error: '', notice: '',
+    }
+    return edits[task.id]
+  }
+  function mergeEdit(task) {
+    const edit = edits[task.id]
+    if (!edit || edit.pending) return
+    const previous = taskEditValues(edit.baseline), latest = taskEditValues(task)
+    // Preserve changed fields; refresh only fields the user has not touched.
+    for (const key of Object.keys(latest)) if (edit.values[key] === previous[key]) edit.values[key] = latest[key]
+    edit.baseline = { ...task }
+    if (edit.blocked) {
+      edit.blocked = false; edit.error = ''
+      edit.notice = '已读取这项任务的最新资料，输入已保留。请核对后保存；没有变化时无需重复保存。'
+    }
+  }
+  function resetEdit(edit) {
+    if (edit.pending) return
+    edit.values = taskEditValues(edit.baseline)
+    if (!edit.blocked) edit.error = ''
+    edit.notice = '未保存的修改已撤销。'
+  }
+  function stopOldReads(task) {
+    for (const state of Object.values(states)) {
+      readVersions.set(state, (readVersions.get(state) || 0) + 1)
+      const wasLoading = state.list.loading
+      state.list.loading = false
+      if (task) {
+        state.list.items = state.list.items.map(item => item.id === task.id ? task : item)
+        if (wasLoading) state.list.stale = true
+      } else if (wasLoading) {
+        state.list.error = '任务更新结果尚未确认，请重新读取列表核对。'
+      }
+    }
+  }
+  async function saveEdit(edit) {
+    if (disposed || edit.pending || edit.blocked) return
+    const { patch, errors } = taskUpdateChanges(edit.baseline, edit.values)
+    if (Object.keys(errors).length || !Object.keys(patch).length) return
+    const id = edit.baseline.id
+    edit.pending = true; edit.error = ''; edit.notice = ''
+    try {
+      const task = await updateTask(id, patch)
+      if (disposed) return
+      stopOldReads(task)
+      edit.baseline = { ...task }; edit.values = taskEditValues(task)
+      edit.notice = '任务修改已保存。'
+    } catch (error) {
+      if (disposed) return
+      stopOldReads()
+      edit.blocked = error?.status !== 400
+      edit.error = error?.status === 400 ? error.message
+        : error?.status === 403 || error?.status === 404
+          ? '任务不存在或无法访问，已暂停保存。请刷新列表核对，输入已保留。'
+          : '无法确认更新结果，已暂停保存。请刷新列表核对，不会自动重复提交。'
+    } finally {
+      if (!disposed) edit.pending = false
     }
   }
   function invalidateLists(savedState) {
@@ -77,5 +142,5 @@ export function useTaskInbox() {
     }
   }
   onBeforeUnmount(() => { disposed = true })
-  return { stateFor, submit, load }
+  return { stateFor, submit, load, editFor, saveEdit, resetEdit }
 }

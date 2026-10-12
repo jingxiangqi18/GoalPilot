@@ -53,7 +53,7 @@ onBeforeUnmount(() => { requestNumber++ })
       <span class="source-goal" :title="goal.goalText">{{ goal.goalText }}</span>
       <button type="button" :disabled="loading || taskBusy" @click="plan ? refreshTasks() : loadPlan()">{{ loading ? '正在读取…' : '刷新计划' }}</button>
     </header>
-    <div v-if="loading" class="plan-loading" role="status"><span class="loading-symbol">↗</span><h1>正在打开你的行动路线</h1><p>读取已保存的正式版本，不会重新生成计划。</p><div class="loading-lines"><i></i><i></i><i></i></div></div>
+    <div v-if="loading" class="plan-loading" role="status"><span class="loading-symbol">↗</span><h1>正在打开你的行动路线</h1><div class="loading-lines"><i></i><i></i><i></i></div></div>
     <div v-else-if="error" class="plan-unavailable" :role="unavailable ? 'status' : 'alert'">
       <span class="empty-symbol">{{ unavailable ? '◇' : '!' }}</span>
       <h1>{{ unavailable ? '暂时没有可读取的正式计划' : '正式计划读取失败' }}</h1>

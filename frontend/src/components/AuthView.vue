@@ -1,7 +1,9 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { loginUser, registerUser } from '../api/auth'
-import PixelScene from './workspace/PixelScene.vue'
+import WorldArt from './workspace/WorldArt.vue'
+import { useWorldAppearance } from '../composables/useWorldAppearance'
+const { theme } = useWorldAppearance()
 import StudioBackdrop from './workspace/StudioBackdrop.vue'
 import AgentSignal from './workspace/AgentSignal.vue'
 
@@ -85,13 +87,12 @@ async function submit() {
       <div class="auth-brand">
         <AgentSignal /><span><strong>GoalPilot</strong><small>YOUR NEXT STATION</small></span>
       </div>
-      <PixelScene class="auth-artwork" scene="railway" eager><span class="artwork-caption">TOWN & COUNTRY · ON THE WAY</span></PixelScene>
+      <div class="auth-artwork"><WorldArt scene-role="auth" eager /><span class="artwork-caption" aria-hidden="true">{{ theme.caption }}</span></div>
       <div class="gallery-copy">
         <span>A NEW JOURNEY STARTS HERE</span>
         <h1>每个想法，<br />都有<em>下一站。</em></h1>
-        <p>与 Agent 一起理清方向，用清单记录每一步。<br />从今天开始，靠近你想完成的事。</p>
       </div>
-      <div class="auth-journey"><span><i>01</i> 说出想法</span><b>→</b><span><i>02</i> 理清路线</span><b>→</b><span><i>03</i> 开始行动</span></div>
+      <WorldArt class="auth-desk-art" scene-role="work" />
     </section>
 
     <section class="auth-panel">
@@ -111,7 +112,6 @@ async function submit() {
             <header>
               <span>{{ isLogin ? 'WELCOME BACK · 欢迎回来' : 'NEW CHAPTER · 新的开始' }}</span>
               <h2>{{ isLogin ? '继续你的旅程。' : '创建目标空间。' }}</h2>
-              <p>{{ isLogin ? '你的目标和进度都在原来的位置。' : '一个安静、清晰、只属于你的规划空间。' }}</p>
             </header>
 
             <div v-if="initialMessage && !formError && !successMessage" class="form-notice neutral">{{ initialMessage }}</div>
@@ -167,10 +167,6 @@ async function submit() {
         </Transition>
       </div>
 
-      <footer class="auth-footnote">
-        <svg viewBox="0 0 20 20" fill="none"><path d="M10 3.2 4.3 5.4v4.3c0 3.4 2.4 6.2 5.7 7.1 3.3-.9 5.7-3.7 5.7-7.1V5.4L10 3.2Z" stroke="currentColor" stroke-width="1.5" /></svg>
-        <span>目标记录与账号绑定保存，并由登录身份隔离访问。</span>
-      </footer>
     </section>
   </main>
 </template>

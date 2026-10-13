@@ -4,16 +4,20 @@ import TaskCreateForm from './TaskCreateForm.vue'
 import TaskDetails from './TaskDetails.vue'
 import SavedPlanView from './SavedPlanView.vue'
 import DateStamp from './DateStamp.vue'
-import PixelAccent from './PixelAccent.vue'
+import WorldArt from './WorldArt.vue'
 
 const props = defineProps({ state: { type: Object, required: true }, editFor: { type: Function, required: true }, goals: { type: Array, default: () => [] }, goal: Object, standalone: Boolean, active: { type: Boolean, default: true }, goalsLoading: Boolean, goalsError: String })
 const emit = defineEmits(['load', 'submit', 'save-edit', 'reset-edit', 'library', 'inbox', 'workspace', 'open-goal', 'updated', 'ask-assistant', 'retry-goals'])
 const mode = ref('inbox'), search = ref(''), expanded = ref(null), selectedPlanGoal = ref(null)
+const statusFilter = ref('ALL'), compact = ref(false)
+const filters = [{ value: 'ALL', label: '全部' }, { value: 'TODO', label: '待开始' }, { value: 'IN_PROGRESS', label: '进行中' }, { value: 'DONE', label: '已完成' }, { value: 'SKIPPED', label: '已跳过' }]
 const createForm = ref(null), heading = ref(null), taskList = ref(null)
 const list = computed(() => props.state.list)
 const selectedTask = computed(() => list.value.items.find(task => task.id === expanded.value))
 const scopedTasks = computed(() => list.value.items.filter(task => !props.goal || task.goalId === props.goal.id))
-const shownTasks = computed(() => scopedTasks.value.filter(task => [task.title, task.description, task.completionCriteria].some(text => String(text || '').toLowerCase().includes(search.value.trim().toLowerCase()))))
+const shownTasks = computed(() => scopedTasks.value.filter(task => (statusFilter.value === 'ALL' || task.status === statusFilter.value) && [task.title, task.description, task.completionCriteria].some(text => String(text || '').toLowerCase().includes(search.value.trim().toLowerCase()))))
+function filterCount(status) { return scopedTasks.value.filter(task => status === 'ALL' || task.status === status).length }
+function clearFilters() { search.value = ''; statusFilter.value = 'ALL' }
 const priorityLabels = { LOW: '低优先级', MEDIUM: '中优先级', HIGH: '高优先级' }
 const statusLabels = { TODO: '待开始', IN_PROGRESS: '进行中', DONE: '已完成', SKIPPED: '已跳过' }
 function goalLabel(id) { return props.goal?.id === id ? props.goal.goalText : props.goals.find(goal => goal.id === id)?.goalText || '关联目标' }
@@ -22,7 +26,7 @@ async function focusDesk(scroll = true) { await nextTick(); heading.value?.focus
 function selectTask(task) { expanded.value = expanded.value === task.id ? null : task.id; if (props.standalone) props.state.open = false }
 async function closeDetails() { const id = expanded.value; expanded.value = null; await nextTick(); taskList.value?.querySelector(`[data-task-id="${id}"]`)?.focus({ preventScroll: true }) }
 function askFromPlan(context) { emit('ask-assistant', { goalId: selectedPlanGoal.value.id, context }) }
-function changePage(page) { search.value = ''; expanded.value = null; emit('load', page) }
+function changePage(page) { clearFilters(); expanded.value = null; emit('load', page) }
 watch([() => props.active, mode, () => list.value.stale], () => {
   if (props.active && mode.value === 'inbox' && list.value.stale) emit('load', list.value.requestedPage)
 }, { immediate: true })
@@ -30,7 +34,7 @@ watch(() => list.value.items, () => {
   if (!list.value.items.some(task => task.id === expanded.value)) expanded.value = null
 })
 watch(() => list.value.page, async () => {
-  search.value = ''; expanded.value = null
+  clearFilters(); expanded.value = null
   await nextTick()
   taskList.value?.scrollTo({ top: 0, behavior: 'instant' })
 })
@@ -38,8 +42,13 @@ defineExpose({ focusDesk, startTask })
 </script>
 
 <template>
-  <section class="task-desk" :class="{ 'task-page': standalone }" aria-label="同步待办清单">
-    <header class="desk-heading"><div><span class="desk-eyebrow">{{ standalone ? 'TASKS' : 'TODO' }}</span><component :is="standalone ? 'h1' : 'h2'" ref="heading" tabindex="-1">{{ standalone ? '待办清单' : goal ? '这个目标的小事' : '对话之外，随手记下' }}</component></div><button v-if="standalone" type="button" class="back-to-workspace" @click="emit('workspace')">✧ 回到工作台</button><PixelAccent class="desk-art" kind="kiosk" /></header>
+  <section class="task-desk" :class="{ 'task-page': standalone, 'compact-tasks': compact }" aria-label="同步待办清单">
+    <nav v-if="standalone" class="desk-navigation" aria-label="待办页面导航"><button type="button" class="back-to-workspace" @click="emit('workspace')"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m8 5-5 5 5 5M3 10h14" /></svg>回到工作台</button><span aria-hidden="true">›</span><span>待办清单</span></nav>
+    <header class="desk-heading">
+      <WorldArt v-if="standalone" class="desk-landscape world-decoration" scene-role="tasks" />
+      <div class="desk-heading-copy"><span class="desk-eyebrow">{{ standalone ? 'MY TASKS' : 'TODO' }}</span><component :is="standalone ? 'h1' : 'h2'" ref="heading" tabindex="-1">{{ standalone ? '待办清单' : goal ? '这个目标的小事' : '对话之外，随手记下' }}</component></div>
+      <WorldArt v-if="!standalone" class="desk-art world-decoration" scene-role="work" />
+    </header>
     <div v-if="!goal" class="desk-tabs" role="group" aria-label="待办查看方式"><button type="button" :aria-pressed="mode === 'inbox'" @click="mode = 'inbox'">我的任务 <small v-if="list.loaded">{{ list.total }}</small></button><button type="button" :aria-pressed="mode === 'plans'" @click="mode = 'plans'">目标计划</button></div>
     <div v-show="mode === 'inbox'" :inert="mode !== 'inbox'" class="inbox-content">
       <div class="inbox-heading"><span>{{ goal ? '本页关联任务' : '任务收件箱' }}<small v-if="list.loaded">{{ goal ? scopedTasks.length + ' 项' : '共 ' + list.total + ' 项' }}</small></span><button type="button" :disabled="state.pending" @click="startTask">{{ state.pending ? '保存中…' : '＋ 记一件事' }}</button></div>
@@ -55,9 +64,10 @@ defineExpose({ focusDesk, startTask })
       <p v-if="list.loading" class="list-loading" role="status">正在读取第 {{ list.requestedPage }} 页…</p>
       <div :aria-busy="list.loading">
       <label v-if="list.loaded && list.total" class="task-search"><span aria-hidden="true">⌕</span><input v-model="search" type="search" aria-label="搜索本页任务" placeholder="搜索本页任务" /></label>
-      <div v-if="list.loaded && !list.total && !list.loading && !list.error && !state.open" class="inbox-empty"><PixelAccent class="empty-garden" kind="garden" /><h3>还没有任务</h3><button type="button" @click="startTask">记下第一件事 ↗</button></div>
+      <div v-if="list.loaded && scopedTasks.length" class="inbox-view-tools"><div class="inbox-filters" role="group" aria-label="本页任务状态"><span>本页</span><button v-for="filter in filters" :key="filter.value" type="button" :aria-pressed="statusFilter === filter.value" @click="statusFilter = filter.value">{{ filter.label }} <small>{{ filterCount(filter.value) }}</small></button></div><button class="density-toggle" type="button" :aria-pressed="compact" aria-label="紧凑任务列表" @click="compact = !compact"><span aria-hidden="true">≡</span> 紧凑</button></div>
+      <div v-if="list.loaded && !list.total && !list.loading && !list.error && !state.open" class="inbox-empty"><WorldArt class="empty-garden world-decoration" scene-role="empty" /><h3>还没有任务</h3><button type="button" @click="startTask">记下第一件事 ↗</button></div>
       <p v-else-if="list.loaded && list.total && !scopedTasks.length && !list.loading" class="search-empty">{{ goal ? '这一页没有关联当前目标的任务，可以翻阅其他页或查看全部任务。' : '这一页暂时没有任务，请刷新列表。' }}</p>
-      <p v-else-if="scopedTasks.length && !shownTasks.length" class="search-empty">本页没有匹配的任务。<button type="button" @click="search = ''">清除搜索</button></p>
+      <p v-else-if="scopedTasks.length && !shownTasks.length" class="search-empty">本页没有匹配的任务。<button type="button" @click="clearFilters">{{ search ? '清除搜索' : '重置筛选' }}</button></p>
       <ul v-if="shownTasks.length" ref="taskList" class="receipt-list" aria-label="已保存的任务">
         <li v-for="task in shownTasks" :key="task.id" class="inbox-task" :class="{ 'is-done': task.status === 'DONE', 'is-selected': standalone && expanded === task.id && !state.open }">
           <button type="button" class="task-receipt-title" :data-task-id="task.id" :aria-expanded="expanded === task.id && (!standalone || !state.open)" :aria-controls="standalone && expanded === task.id && !state.open ? 'selected-task-details' : undefined" @click="selectTask(task)"><span class="receipt-mark" aria-hidden="true">{{ task.status === 'DONE' ? '✓' : task.status === 'IN_PROGRESS' ? '◷' : task.status === 'SKIPPED' ? '−' : '□' }}</span><span><strong>{{ task.title }}</strong><small>{{ task.goalId ? '关联目标' : '独立任务' }}<i>·</i><b :class="{ important: task.priority === 'HIGH' }">{{ priorityLabels[task.priority] }}</b></small></span><span v-if="standalone" class="task-row-deadline"><DateStamp v-if="task.deadline" :value="task.deadline" label="期待完成" compact /><span v-else>未设置时间</span></span><span class="receipt-status">{{ statusLabels[task.status] }}<i aria-hidden="true">{{ expanded === task.id && (!standalone || !state.open) ? '−' : '＋' }}</i></span></button>

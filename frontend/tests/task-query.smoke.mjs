@@ -113,7 +113,7 @@ try {
   assert.equal(await desk().locator('.inbox-task').count(), 19)
   assert.deepEqual(reads().at(-1).query, { page: '2', size: '20' }, 'Never send unsupported goal/status/search filters')
   await desk().getByRole('button', { name: '查看全部任务 →' }).click(); await row('从第二页添加的新任务').waitFor()
-  assert.match(await desk().getByRole('navigation').innerText(), /第 1 页/, 'Page positions stay separate across views')
+  assert.match(await desk().getByRole('navigation', { name: '全部任务分页', exact: true }).innerText(), /第 1 页/, 'Page positions stay separate across views')
 
   failure = 503
   await save('已保存但列表暂时离线'); await desk().locator('.list-error').waitFor()
@@ -138,20 +138,20 @@ try {
   for (const width of [2560, 1600, 390, 320]) {
     await page.setViewportSize({ width, height: width > 2000 ? 1440 : 1000 })
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Page overflow ' + width)
-    assert.ok(await desk().getByRole('navigation').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'Pagination overflow ' + width)
+    assert.ok(await desk().getByRole('navigation', { name: '全部任务分页', exact: true }).evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'Pagination overflow ' + width)
     if ([1600, 390].includes(width)) await shot('tasks-' + width)
   }
   await page.setViewportSize({ width: 1600, height: 1100 })
   await page.reload(); await row('不会被迟到响应抹掉').waitFor(); await settled()
   await turn('下一页 →'); await turn('下一页 →')
-  assert.match(await desk().getByRole('navigation').innerText(), /第 3 页/)
+  assert.match(await desk().getByRole('navigation', { name: '全部任务分页', exact: true }).innerText(), /第 3 页/)
   tasks = tasks.slice(0, 4)
   await refresh(); await row('不会被迟到响应抹掉').waitFor()
   assert.deepEqual(reads().slice(-2).map(r => r.query.page), ['3', '1'], 'Recover a removed last page once')
   assert.equal(await desk().locator('.inbox-task').count(), 4)
   tasks = []; await refresh()
   assert.match(await desk().locator('.inbox-empty').innerText(), /还没有任务/)
-  assert.equal(await desk().getByRole('navigation').count(), 0)
+  assert.equal(await desk().getByRole('navigation', { name: '全部任务分页', exact: true }).count(), 0)
   failure = 500; await page.reload(); await desk().locator('.list-error').waitFor()
   assert.equal(await desk().locator('.inbox-empty').count(), 0, 'A failed first load is not an empty inbox')
   failure = 0; await desk().getByRole('button', { name: '重试读取任务' }).click(); await desk().locator('.inbox-empty').waitFor()

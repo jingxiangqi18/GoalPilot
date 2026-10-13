@@ -1,6 +1,6 @@
 <script setup>
 import DateStamp from './DateStamp.vue'
-import PixelAccent from './PixelAccent.vue'
+import WorldArt from './WorldArt.vue'
 import PixelSelect from '../ui/PixelSelect.vue'
 import PixelDateTimePicker from '../ui/PixelDateTimePicker.vue'
 import { taskPriorities } from '../../utils/taskDraft'
@@ -25,7 +25,7 @@ const priorities = { LOW: '低优先级', MEDIUM: '中优先级', HIGH: '高优�
 
 <template>
   <aside id="selected-task-details" class="task-inspector" aria-label="任务详情" @keydown.esc.stop="$emit('close')">
-    <header><span>任务详情</span><PixelAccent class="detail-art" kind="garden" /><button type="button" aria-label="关闭任务详情" @click="$emit('close')">×</button></header>
+    <header><span>任务详情</span><WorldArt class="detail-art world-decoration" scene-role="detail" /><button type="button" aria-label="关闭任务详情" @click="$emit('close')">×</button></header>
     <h2 ref="title" tabindex="-1">{{ task.title }}</h2>
     <div class="detail-tags"><span>{{ statuses[task.status] }}</span><span :class="{ important: task.priority === 'HIGH' }">{{ priorities[task.priority] }}</span></div>
     <form class="task-edit-form" aria-label="编辑任务资料" :aria-busy="editState.pending" @submit.prevent="$emit('save')">

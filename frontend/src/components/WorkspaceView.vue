@@ -16,6 +16,9 @@ import { usePlanTasks } from '../composables/usePlanTasks'
 import { useTaskInbox } from '../composables/useTaskInbox'
 import TaskDesk from './workspace/TaskDesk.vue'
 import WorkspaceScenery from './workspace/WorkspaceScenery.vue'
+import WorldAppearance from './workspace/WorldAppearance.vue'
+import { useWorldAppearance } from '../composables/useWorldAppearance'
+const { appearance } = useWorldAppearance()
 
 const props = defineProps({ user: { type: Object, required: true } })
 defineEmits(['logout'])
@@ -550,14 +553,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="workspace-shell" :class="{ 'in-session': activeView === 'session' }">
+  <div class="workspace-shell" :data-scenery="appearance.scene" :class="{ 'in-session': activeView === 'session', 'focus-mode': appearance.focused }">
     <WorkspaceSidebar :user="user" :active-view="activeView" :active-goal-id="activeView === 'session' ? sessionId : null" :items="recentItems" :goal-total="recentTotal" :busy="!!activeRequest" @navigate="navigate" @new-goal="startNewGoal" @open-goal="openGoalDetails" @logout="$emit('logout')" />
     <main class="workspace-main">
       <StudioBackdrop />
       <header class="topbar">
         <nav class="mobile-nav" aria-label="移动端工作区导航"><button type="button" :aria-current="activeView === 'create' ? 'page' : undefined" @click="navigate('create')">工作台</button><button type="button" :aria-current="activeView === 'tasks' ? 'page' : undefined" @click="navigate('tasks')">待办</button><button type="button" :aria-current="activeView === 'library' ? 'page' : undefined" @click="navigate('library')">目标库</button></nav>
         <div class="topbar-context"><span class="space-name">GoalPilot <i>✧</i> {{ activeView === 'session' ? '目标会话' : activeView === 'library' ? '我的目标' : activeView === 'tasks' ? '待办清单 · 手动管理' : '规划工作台 · Agent' }}</span></div>
-        <div class="topbar-right"><time class="topbar-date" :datetime="todayDateValue"><span class="date-number">{{ todayDay }}</span><span class="date-copy"><strong>{{ todayWeekday }}</strong><small>{{ todayMonth }}</small></span></time><AccountMenu :user="user" @logout="$emit('logout')" /></div>
+        <div class="topbar-right"><WorldAppearance /><time class="topbar-date" :datetime="todayDateValue"><span class="date-number">{{ todayDay }}</span><span class="date-copy"><strong>{{ todayWeekday }}</strong><small>{{ todayMonth }}</small></span></time><AccountMenu :user="user" @logout="$emit('logout')" /></div>
       </header>
       <div class="workspace-content" :class="{ 'session-content': activeView === 'session' }">
         <div v-if="activeView === 'create'" class="create-dashboard">

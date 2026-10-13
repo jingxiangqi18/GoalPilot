@@ -1,13 +1,32 @@
 # GoalPilot decorative assets
 
-## Small pixel dioramas — October 2026 additions
+## Singapore — first real-city collection
+
+Six new images extend Pixel Atlas with one city across different page scenes:
+Marina Bay miniature panorama, tropical garden, riverside shophouses, a bookshop
+cutout, a rain-tree garden and an MRT vignette. Existing scenery remains selectable.
+See [saved assets, exact prompts and generation/encoding details](2026-10-12-singapore-city.md).
+The city is an artistic interpretation, not an accurate geographic map.
+
+## Pixel Atlas — current theme, October 2026
+
+Eight new original assets form the illustrated pixel studio: riverside city,
+botanical garden, blue-hour railway, two garden / neighborhood edges, a meadow
+viaduct, a working desk and a reading nook. The homepage keeps conversation at its
+center; login, ToDo, goal covers and the Agent welcome share the same visual world.
+Three scenes are user-selectable, with a local focus mode; there is no autoplay.
+See [all saved assets, encoding details and exact generation prompts](2026-10-12-pixel-atlas.md).
+All eight were made with the built-in image generation tool; no external source
+images were used. Earlier assets and their original usage records remain below.
+
+## Small pixel dioramas — earlier October 2026 additions
 
 Three new transparent assets (pocket garden, flower kiosk, tram stop) are used in
 the workspace, ToDo, task inspector and goal library. See the
 [asset paths, encoding details and complete final prompts](2026-10-12-decorations.md).
 The older scene inventory below records the preceding theme iterations.
 
-## Pixel town, nature and railway — current theme
+## Pixel town, nature and railway — preceding theme
 
 Rebalanced on 2026-09-14 by reusing the existing five assets: the login scene
 combines a train, riverside architecture, greenery and commuters; the home river
@@ -73,7 +92,7 @@ Style: crisp handcrafted 16-bit pixel art, obvious square pixel clusters, steppe
 Genuinely transparent alpha background. No opaque floor outside the vignette, no checkerboard drawn into the image, no skyline backdrop, no external shadow, no train, rails, railway station, clock tower, text, letters, labels, logos, UI or watermark. Single finished original bitmap, not a sprite sheet.
 ```
 
-## Pixel railway city — complementary current assets
+## Pixel railway city — preceding complementary assets
 
 Generated on 2026-09-13 with the **built-in image generation tool**, using the
 `imagegen` skill. Original artwork combines a lived-in river city, architecture,

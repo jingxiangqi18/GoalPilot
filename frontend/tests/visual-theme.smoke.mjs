@@ -46,7 +46,7 @@ function contrast(hex1, hex2) {
 try {
   await page.goto(process.env.APP_URL || 'http://127.0.0.1:5184')
   await page.locator('.auth-artwork img').evaluate(img => img.decode())
-  assert.ok(await page.locator('.auth-artwork img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-city') && img.naturalWidth === 1536 && img.naturalHeight === 1024), 'Login combines the train, river, greenery, people and town')
+  assert.ok(await page.locator('.auth-artwork img').evaluate(img => img.currentSrc.includes('goalpilot-world-harbor') && img.naturalWidth === 1536 && img.naturalHeight === 512), 'Login combines the railway, river, greenery, people and town')
   assert.equal(await page.locator('.auth-artwork img').evaluate(img => getComputedStyle(img).imageRendering), 'pixelated')
   assert.ok(await page.evaluate(async () => {
     await document.fonts.load('12px Silkscreen')
@@ -55,6 +55,13 @@ try {
   for (const [width, height] of [[2560, 1440], [1600, 1050], [800, 900], [390, 844], [320, 640]]) {
     await page.setViewportSize({ width, height }); await settle(); await noOverflow('Login overflow ' + width)
     assert.ok(await page.locator('.auth-panel').isVisible())
+    const panel = await page.locator('.auth-panel').boundingBox()
+    const field = await page.locator('input[name="account"]').boundingBox()
+    assert.ok(field.width >= panel.width - 90, 'Login fields use the full form width')
+    if (width > 780) {
+      const gallery = await page.locator('.auth-gallery').boundingBox()
+      assert.ok(Math.abs(gallery.y - panel.y) < 2 && Math.abs(gallery.height - panel.height) < 2, 'Login is one aligned illustration and form spread')
+    }
     await shot('login-' + width)
   }
   const tokens = await page.evaluate(() => Object.fromEntries(['--ink', '--ink-500', '--paper', '--canvas', '--accent', '--accent-deep'].map(name => [name, getComputedStyle(document.documentElement).getPropertyValue(name).trim()])))
@@ -89,37 +96,41 @@ try {
   assert.deepEqual(JSON.parse(requests.filter(r => r.path.endsWith('/login'))[1].body), { account: 'jakin@example.com', password: 'secret123' })
   for (const [width, height] of [[2560, 1440], [1600, 1050], [1320, 900], [1100, 900], [961, 900], [960, 900], [800, 900], [390, 844], [320, 640]]) {
     await page.setViewportSize({ width, height }); await settle(); await noOverflow('Home overflow ' + width)
-    await page.locator('.station-fragment img').evaluate(img => img.decode())
+    await page.locator('.world-viaduct').evaluate(img => img.decode())
     assert.equal(await page.locator('.progress-garden, .composer-scenery').count(), 0, 'No banner or secondary hero competes with the conversation')
-    assert.ok(await page.locator('.station-fragment img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-tram-stop')), 'A small tram stop complements the city and nature scenes')
+    assert.ok(await page.locator('.world-viaduct').evaluate(img => img.currentSrc.includes('goalpilot-world-viaduct')), 'A meadow railway connects the city and nature scenes')
     assert.equal(await page.locator('.task-desk').count(), 0, 'ToDo has its own page, not a second homepage section')
     const bounds = await page.locator('.writing-card').boundingBox()
     const scenery = await page.locator('.editorial-heading').boundingBox()
     assert.ok(bounds.y >= scenery.y + scenery.height, 'Artwork never covers the composer')
     const main = await page.locator('.workspace-content').boundingBox()
+    if (width > 620) {
+      const appearance = await page.locator('.appearance-trigger').boundingBox()
+      assert.ok(appearance.width > 65 && appearance.height <= 44, 'Appearance trigger does not inherit header close-button dimensions')
+    }
     assert.ok(Math.abs(bounds.x + bounds.width / 2 - main.x - main.width / 2) < 2, 'Composer stays centered in the workspace')
     assert.ok(bounds.y < height * .65, 'The main input is available without scrolling')
-    for (const fragment of await page.locator('.world-fragment, .station-fragment').all()) {
+    for (const fragment of await page.locator('.world-edge, .world-viaduct').all()) {
       if (!await fragment.isVisible()) continue
       const rect = await fragment.boundingBox()
       assert.ok(rect.x + rect.width <= bounds.x || rect.x >= bounds.x + bounds.width || rect.y + rect.height <= bounds.y || rect.y >= bounds.y + bounds.height, 'Peripheral art does not overlap the input')
     }
     if (width >= 1500) {
-      assert.equal(await page.locator('.world-fragment:visible').count(), 3)
-      for (const name of ['riverside', 'highlands', 'railway']) await page.locator('.world-fragment.' + name + ' img').evaluate(img => img.decode())
+      assert.equal(await page.locator('.world-edge:visible').count(), 2)
+      for (const art of await page.locator('.workspace-scenery .world-art').all()) await art.evaluate(img => img.decode())
     }
     assert.ok(await page.getByRole('textbox', { name: '我的目标' }).evaluate(el => !getComputedStyle(el).fontFamily.includes('Silkscreen')), 'Chinese prose retains readable sans-serif typography')
     if ([2560, 1600, 390].includes(width)) await shot('home-' + width)
   }
   await page.setViewportSize({ width: 1600, height: 1050 })
-  await page.locator('.sidebar-scenery img').evaluate(img => img.decode())
-  assert.ok(await page.locator('.sidebar-scenery img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-highlands')))
+  await page.locator('.sidebar-scenery').evaluate(img => img.decode())
+  assert.ok(await page.locator('.sidebar-scenery').evaluate(img => img.currentSrc.includes('goalpilot-world-harbor')))
   await page.locator('.main-nav').getByRole('button', { name: /待办清单/ }).click()
   await page.locator('.inbox-empty').waitFor()
   for (const width of [1600, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 }); await settle()
     await noOverflow('Decorated ToDo overflow ' + width)
-    for (const art of await page.locator('.task-desk .pixel-accent').all()) {
+    for (const art of await page.locator('.task-desk .empty-garden, .task-desk .desk-art').all()) {
       await art.evaluate(img => img.decode())
       assert.equal(await art.getAttribute('aria-hidden'), 'true')
       assert.equal(await art.evaluate(img => getComputedStyle(img).pointerEvents), 'none')
@@ -136,12 +147,12 @@ try {
   await page.setViewportSize({ width: 1600, height: 1050 })
   await page.locator('.main-nav').getByRole('button', { name: /我的目标/ }).click()
   await page.locator('.goal-card').first().waitFor(); await settle(); await shot('collection-1600')
-  await page.locator('.collection-art img').evaluate(img => img.decode())
-  assert.ok(await page.locator('.collection-art img').evaluate(img => img.currentSrc.includes('goalpilot-pixel-flower-kiosk')), 'The goal library gets a small neighborhood flower kiosk')
+  await page.locator('.library-landscape').evaluate(img => img.decode())
+  assert.ok(await page.locator('.library-landscape').evaluate(img => img.currentSrc.includes('goalpilot-world-harbor')), 'The goal library has an illustrated landscape header')
   await page.locator('.goal-card').first().getByRole('button', { name: '进入会话' }).click()
   await page.locator('.question-form').waitFor()
   await page.locator('.welcome-station').evaluate(img => img.decode())
-  assert.ok(await page.locator('.welcome-station').evaluate(img => img.currentSrc.includes('goalpilot-pixel-courtyard')), 'Conversation welcome retains the reading garden')
+  assert.ok(await page.locator('.welcome-station').evaluate(img => img.currentSrc.includes('goalpilot-world-reading-nook')), 'Conversation welcome features the new reading nook')
   await page.locator('.session-tools').getByRole('button', { name: /计划与任务/ }).click()
   await page.locator('.task-row').waitFor(); await settle(); await shot('conversation-tools-1600')
   assert.ok(await page.locator('.task-check .check-box').isVisible(), 'Manual task checkbox uses the pixel theme')

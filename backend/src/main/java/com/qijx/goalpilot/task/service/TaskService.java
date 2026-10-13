@@ -169,6 +169,20 @@ public class TaskService {
         return TaskResponse.from(updatedTask);
     }
 
+    public void deleteTask(Long userId, Long taskId){
+        findOwnedTask(userId, taskId);
+
+        LambdaQueryWrapper<Task> deleteWrapper = new LambdaQueryWrapper<Task>()
+            .eq(Task::getId, taskId)
+            .eq(Task::getUserId, userId);
+
+        int deletedRows = taskMapper.delete(deleteWrapper);
+
+        if(deletedRows != 1){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "任务可能已经发生变化");
+        }
+    }
+
     private Task findOwnedTask(Long userId, Long taskId){
         Task task = taskMapper.selectOne(
             new LambdaQueryWrapper<Task>()

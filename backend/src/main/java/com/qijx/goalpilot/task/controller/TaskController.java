@@ -1,6 +1,7 @@
 package com.qijx.goalpilot.task.controller;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -59,5 +60,14 @@ public class TaskController {
         @Valid @RequestBody TaskUpdateRequest request
     ){
         return taskService.updateTask(userId, taskId, request);
+    }
+
+    @DeleteMapping("/{taskId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteTask(
+        @CurrentUserId Long userId,
+        @PathVariable @Positive Long taskId
+    ){
+        taskService.deleteTask(userId, taskId);
     }
 }

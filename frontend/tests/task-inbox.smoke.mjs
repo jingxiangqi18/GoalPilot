@@ -72,7 +72,7 @@ try {
   assert.equal(posts()[0].authorization, 'Bearer inbox-test')
   assert.equal(await receipt('整理演示视频').count(), 0, 'No optimistic receipt before the server confirms')
   release(); hold = null; await saved('整理演示视频')
-  await desk().getByRole('button', { name: '✧ 回到工作台' }).click()
+  await desk().getByRole('button', { name: '回到工作台', exact: true }).click()
   assert.equal(await page.getByRole('textbox', { name: '我的目标', exact: true }).inputValue(), '这是一段尚未提交的目标描述')
   await inbox()
   assert.equal(await desk().getByRole('checkbox').count(), 0, 'A new Task must never expose PlanTask completion controls')

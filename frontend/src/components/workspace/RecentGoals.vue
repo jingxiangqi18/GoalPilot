@@ -1,10 +1,10 @@
 <script setup>
 import GoalStatusBadge from './GoalStatusBadge.vue'
 import DateStamp from './DateStamp.vue'
+import WorldArt from './WorldArt.vue'
 defineProps({ items: { type: Array, required: true }, loading: Boolean, error: { type: String, default: '' }, busy: Boolean })
 defineEmits(['open', 'plan', 'library', 'retry'])
 const title = goal => String(goal.goalText || '').split('\n').find(line => line.trim()) || '未命名目标'
-const hints = { DRAFT: '从这个想法，继续聊起', NEEDS_CLARIFICATION: '补充条件，让方向更清晰', READY_TO_PLAN: '信息已就绪，可以规划路线', ACTIVE: '回到对话，推进下一步', COMPLETED: '回顾这段已完成的旅程' }
 </script>
 
 <template>
@@ -14,12 +14,13 @@ const hints = { DRAFT: '从这个想法，继续聊起', NEEDS_CLARIFICATION: '�
     <p v-else-if="loading && !items.length" class="recent-notice" role="status">正在取回你的目标…</p>
     <div v-else-if="items.length" class="recent-grid">
       <article v-for="goal in items.slice(0, 3)" :key="goal.id" class="recent-goal">
+        <WorldArt class="recent-cover world-decoration" scene-role="cover" :identity="goal.id" />
         <div class="recent-meta"><GoalStatusBadge :status="goal.status" /><DateStamp :value="goal.updatedAt || goal.createdAt" :label="goal.updatedAt ? '更新于' : '记录于'" compact :show-time="false" /></div>
-        <button class="recent-open" type="button" :disabled="busy" @click="$emit('open', goal.id)"><h3>{{ title(goal) }}</h3><span>{{ hints[goal.status] || '打开目标，查看当前进展' }} <i aria-hidden="true">↗</i></span></button>
+        <button class="recent-open" type="button" :disabled="busy" @click="$emit('open', goal.id)"><h3>{{ title(goal) }}</h3><span>继续对话 <i aria-hidden="true">↗</i></span></button>
         <button v-if="goal.status === 'ACTIVE' || goal.status === 'COMPLETED'" class="recent-plan" type="button" :disabled="busy" @click="$emit('plan', goal)"><svg viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="m2 5 1.5 1.5L6 4m2 1h8M2 10h3m3 0h8M2 15h3m3 0h8"/></svg>查看任务清单</button>
       </article>
     </div>
-    <div v-else class="recent-empty"><span aria-hidden="true">✧</span><div><h3>你的下一段旅程，从这里开始。</h3><p>写下第一个目标，之后可以随时回来继续对话。</p></div></div>
+    <div v-else class="recent-empty"><WorldArt class="recent-empty-art world-decoration" scene-role="empty" /><h3>还没有目标</h3></div>
   </section>
 </template>
 

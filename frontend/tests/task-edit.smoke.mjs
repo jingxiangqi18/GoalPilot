@@ -164,7 +164,7 @@ try {
   await page.getByRole('button', { name: '关闭任务详情' }).click()
   await desk().getByRole('button', { name: '下一页 →' }).click(); await open(5)
   await title().fill('在第二页保存'); await save().click(); await saved()
-  assert.match(await desk().getByRole('navigation').innerText(), /第 2 页/, 'Metadata updates never move the current page')
+  assert.match(await desk().getByRole('navigation', { name: '全部任务分页', exact: true }).innerText(), /第 2 页/, 'Metadata updates never move the current page')
 
   patchHold = new Promise(resolve => { releasePatch = resolve })
   await title().fill('不能进入另一账户'); await save().click(); await page.waitForFunction(() => document.querySelector('.task-edit-form')?.getAttribute('aria-busy') === 'true')

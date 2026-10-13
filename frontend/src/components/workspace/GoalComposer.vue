@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { buildGoalText, goalDetailFields } from '../../utils/goalDraft'
 import AgentSignal from './AgentSignal.vue'
+import WorldArt from './WorldArt.vue'
 
 const goalText = defineModel({ type: String, required: true })
 const details = defineModel('details', { type: Object, required: true })
@@ -20,9 +21,9 @@ const focused = ref(false)
 const detailsOpen = ref(Object.values(details.value).some(value => String(value).trim()))
 const pendingExample = ref(null)
 const examples = [
-  { tag: '职业成长', icon: '↗', text: '三个月内完成一个适合找 Java 后端实习的项目' },
-  { tag: '学习充电', icon: '✧', text: '今年通过英语六级，每天可以学习一小时' },
-  { tag: '健康生活', icon: '◷', text: '开始规律跑步，半年后完成一次半程马拉松' },
+  { tag: '职业成长', icon: '↗', art: 'work', text: '三个月内完成一个适合找 Java 后端实习的项目' },
+  { tag: '学习充电', icon: '✧', art: 'study', text: '今年通过英语六级，每天可以学习一小时' },
+  { tag: '健康生活', icon: '◷', art: 'wellness', text: '开始规律跑步，半年后完成一次半程马拉松' },
 ]
 const count = computed(() => buildGoalText(goalText.value, details.value).length)
 const filledFields = computed(() => goalDetailFields.filter(field => details.value[field.key]?.trim()))
@@ -80,7 +81,6 @@ function submitShortcut(event) {
     <header class="editorial-heading">
       <span class="kicker"><i aria-hidden="true"></i>你好，{{ userName }}</span>
       <h1>今天，想一起<span>推进什么？</span></h1>
-      <p>一个想法，或眼前的一小步。我们从这里聊起。</p>
     </header>
     <form ref="form" class="writing-card agent-input-surface" :class="{ 'is-focused': focused, 'is-working': loading }" @submit.prevent="submit" @keydown.ctrl.enter="submitShortcut" @keydown.meta.enter="submitShortcut">
       <div class="composer-caption"><AgentSignal :active="loading" /><span>和 GoalPilot 聊聊</span><small>YOUR NEXT CHAPTER</small></div>
@@ -96,7 +96,7 @@ function submitShortcut(event) {
     <section class="prompt-module" aria-label="目标灵感">
       <div class="prompt-heading"><span>从一个灵感开始</span><i aria-hidden="true"></i></div>
       <Transition name="example-confirm"><div v-if="pendingExample" class="example-confirm" role="group" aria-label="确认替换目标描述"><p>要用这个灵感替换当前描述吗？<small>{{ pendingExample }}。补充条件会保留。</small></p><button type="button" @click="pendingExample = null">保留原文</button><button type="button" @click="applyExample(pendingExample)">使用示例</button></div></Transition>
-      <div class="example-grid"><button v-for="example in examples" :key="example.tag" type="button" :disabled="loading" @click="chooseExample(example.text)"><span aria-hidden="true">{{ example.icon }}</span><div><small>{{ example.tag }}</small><strong>{{ example.text }}</strong></div><i aria-hidden="true">↗</i></button></div>
+      <div class="example-grid"><button v-for="example in examples" :key="example.tag" type="button" :disabled="loading" @click="chooseExample(example.text)"><WorldArt class="idea-art world-decoration" :scene-role="example.art" /><div><small>{{ example.tag }}</small><strong>{{ example.text }}</strong></div><i aria-hidden="true">↗</i></button></div>
     </section>
   </section>
 </template>

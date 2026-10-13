@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import PixelAccent from './PixelAccent.vue'
+import WorldArt from './WorldArt.vue'
 import GoalStatusBadge from './GoalStatusBadge.vue'
 import DateStamp from './DateStamp.vue'
 import { goalPresentation, priorityLabel } from '../../utils/goalPresentation'
@@ -18,6 +18,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['select', 'continue', 'generate-plan', 'view-plan', 'new-goal', 'refresh', 'page-change', 'status-change'])
 const search = ref('')
+const view = ref('gallery')
 const filters = [
   { value: 'ALL', label: '全部' },
   { value: 'DRAFT', label: '草稿' },
@@ -38,11 +39,12 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
 </script>
 
 <template>
-  <section class="library-view">
+  <section class="library-view" :class="{ 'list-view': view === 'list' }">
     <header class="library-hero reveal-item">
+      <WorldArt class="library-landscape world-decoration" scene-role="library" eager />
       <div class="hero-copy">
         <span class="eyebrow"><i aria-hidden="true"></i>YOUR JOURNEY BOARD</span>
-        <h1>每一个目标，<em>都有值得抵达的下一站。</em></h1>
+        <h1>我的目标<em>每一步，都有风景。</em></h1>
         <dl class="collection-stats" aria-label="目标概览">
           <div><dt>{{ statusFilter === 'ALL' ? '累计目标' : filterLabel + '目标' }}</dt><dd>{{ loading || errorMessage ? '—' : total }}<small>个</small></dd></div>
           <div><dt>本页待规划</dt><dd>{{ loading || errorMessage ? '—' : readyCount }}<small>个</small></dd></div>
@@ -50,9 +52,6 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
         </dl>
       </div>
       <div class="hero-side">
-        <div class="collection-art" aria-hidden="true">
-          <PixelAccent kind="kiosk" />
-        </div>
         <button class="new-goal-button" type="button" :disabled="busy" @click="emit('new-goal')"><span aria-hidden="true">＋</span> 创建新目标 <span aria-hidden="true">↗</span></button>
       </div>
     </header>
@@ -61,6 +60,7 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
       <header class="archive-heading">
         <div><span class="section-label">MY GOALS</span><h2>目标收藏 <span aria-live="polite">{{ loading ? '正在读取' : errorMessage ? '暂未读取' : filterLabel + ' · 本页 ' + visibleItems.length + ' 个' }}</span></h2></div>
         <div class="toolbar-actions">
+          <div class="collection-view-toggle" role="group" aria-label="目标展示方式"><button type="button" aria-label="封面视图" :aria-pressed="view === 'gallery'" @click="view = 'gallery'">▦</button><button type="button" aria-label="列表视图" :aria-pressed="view === 'list'" @click="view = 'list'">☷</button></div>
           <label class="goal-search"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg><input v-model="search" type="search" aria-label="搜索本页目标" placeholder="搜索本页目标" /></label>
           <button class="refresh-button" type="button" :disabled="loading" aria-label="刷新目标列表" @click="emit('refresh')"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16 8a6.2 6.2 0 1 0 .1 3.2M16 4v4h-4" /></svg></button>
         </div>
@@ -75,6 +75,7 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
       <div v-else-if="loading" class="goal-grid" aria-label="正在加载目标"><article v-for="index in 3" :key="index" class="goal-card skeleton-card"><i></i><i></i><i></i></article></div>
       <TransitionGroup v-else class="goal-grid" :class="{ 'is-empty': !visibleItems.length }" name="goal-filter" tag="div">
         <article v-for="goal in visibleItems" :key="goal.id" class="goal-card" :class="goalPresentation(goal.status).tone">
+          <WorldArt class="goal-cover world-decoration" scene-role="cover" :identity="goal.id" />
           <button class="card-open" type="button" :aria-label="'查看目标：' + goal.goalText" @click="emit('select', goal.id)">
             <span class="card-topline">
               <span class="goal-glyph" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M9 7h11l5 5v14H9z" /><path d="M20 7v6h5M13 18h8m-8 4h5" /></svg></span>
@@ -97,7 +98,7 @@ function resetFilters() { search.value = ''; emit('status-change', 'ALL') }
       </TransitionGroup>
 
       <div v-if="!loading && !errorMessage && !visibleItems.length" class="empty-archive">
-        <PixelAccent kind="garden" />
+        <WorldArt class="archive-empty-art world-decoration" scene-role="empty" />
         <span class="section-label">{{ items.length ? 'KEEP EXPLORING' : 'YOUR NEXT CHAPTER' }}</span>
         <h3>{{ search ? '本页没有匹配的目标' : statusFilter !== 'ALL' ? '暂时没有' + filterLabel + '的目标' : total ? '这一页暂时没有目标' : '让第一个想法，在这里落笔' }}</h3>
         <p>{{ search ? '换一个关键词，或清除搜索后查看本页。' : statusFilter !== 'ALL' ? '可以切换状态，查看其他目标。' : total ? '返回第一页，查看最新的目标记录。' : '不必想得周全，一句自然的描述就够了。' }}</p>

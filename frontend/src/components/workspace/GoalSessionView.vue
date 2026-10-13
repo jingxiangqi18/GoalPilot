@@ -71,7 +71,7 @@ onBeforeUnmount(() => media.removeEventListener('change', updateWidth))
   <section class="goal-session" :class="{ 'tools-open': panel }" aria-label="目标会话">
     <header class="session-header">
       <button class="session-back" type="button" aria-label="返回目标库" @click="emit('back')">←</button>
-      <div class="session-title"><span>GOAL SPACE <i aria-hidden="true">·</i><small>对话驱动，清单落地</small></span><h1 :title="goal.goalText">{{ goalTitle }}</h1></div>
+      <div class="session-title"><span>GOAL SPACE</span><h1 :title="goal.goalText">{{ goalTitle }}</h1></div>
       <GoalStatusBadge :status="goal.status" />
       <div class="session-tools" role="group" aria-label="目标工具">
         <button class="agent-tab" type="button" :class="{ selected: !panel }" :aria-pressed="!panel" @click="openPanel('')"><AgentSignal /> Agent 对话</button>

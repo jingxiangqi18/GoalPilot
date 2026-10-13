@@ -4,7 +4,7 @@ import { askGoalAssistant } from '../../api/goal'
 import AssistantReply from './AssistantReply.vue'
 import DateStamp from './DateStamp.vue'
 import AgentSignal from './AgentSignal.vue'
-import courtyardArtwork from '../../assets/goalpilot-pixel-courtyard-v1.webp'
+import WorldArt from './WorldArt.vue'
 
 const props = defineProps({
   goal: { type: Object, required: true },
@@ -113,7 +113,7 @@ onBeforeUnmount(() => { requestNumber++ })
     <div ref="conversation" class="conversation" role="region" aria-label="本次问答记录" tabindex="0">
       <div class="chat-column">
         <div v-if="!entries.length && !busy" class="assistant-welcome">
-          <div class="welcome-signal"><AgentSignal /><div><span class="welcome-eyebrow">GOALPILOT · THINKING SPACE</span><span class="agent-caption">方向在对话里，进展在每一步里。</span></div><img class="welcome-station" :src="courtyardArtwork" alt="" width="512" height="439" aria-hidden="true" /></div>
+          <div class="welcome-signal"><AgentSignal /><div><span class="welcome-eyebrow">GOALPILOT · THINKING SPACE</span></div><WorldArt class="welcome-station world-decoration" scene-role="welcome" /></div>
           <h2 ref="heading" tabindex="-1">我们从这件事聊起。</h2>
           <div class="welcome-context"><span>正在关注的目标</span><p class="welcome-goal">{{ goal.goalText }}</p></div>
           <div class="welcome-actions">

@@ -1,6 +1,8 @@
 <script setup>
 import AgentSignal from './AgentSignal.vue'
-import PixelScene from './PixelScene.vue'
+import WorldArt from './WorldArt.vue'
+import { useWorldAppearance } from '../../composables/useWorldAppearance'
+const { theme } = useWorldAppearance()
 defineProps({
   user: { type: Object, required: true },
   activeView: { type: String, required: true },
@@ -27,7 +29,7 @@ defineEmits(['logout', 'navigate', 'new-goal', 'open-goal'])
       <p v-if="!items.length">新的想法，会在这里慢慢积累。</p>
       <button v-if="goalTotal > items.length || items.length > 7" type="button" class="all-goals" @click="$emit('navigate', 'library')">查看全部目标 →</button>
     </nav>
-    <div class="sidebar-note"><PixelScene class="sidebar-scenery" scene="highlands" /><div><span class="note-label">ONE STEP AT A TIME</span><p>在对话中找方向，<br />在行动中见进展。</p><span class="mini-route" aria-hidden="true"><i></i><b></b><i></i><b></b><i></i></span></div></div>
+    <div class="sidebar-note world-decoration" aria-hidden="true"><WorldArt class="sidebar-scenery" scene-role="sidebar" /><div><span class="note-label">A LITTLE WORLD</span><p>{{ theme.label }}</p><span class="mini-route"><i></i><b></b><i></i><b></b><i></i></span></div></div>
     <div class="user-card"><span class="avatar">{{ user.username?.charAt(0).toUpperCase() || 'G' }}</span><div><strong>{{ user.username }}</strong><small>你的目标空间</small></div><button type="button" aria-label="退出登录" @click="$emit('logout')">↪</button></div>
   </aside>
 </template>

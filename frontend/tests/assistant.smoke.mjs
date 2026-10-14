@@ -33,6 +33,7 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
   else if (path === '/api/goals') data = { items: [goal, otherGoal], page: 1, total: 2, totalPages: 1 }
   else if (path === '/api/goals/13') data = goal
   else if (path === '/api/goals/14') data = otherGoal
+  else if (path === '/api/plans') data = { items: [], page: 1, size: 1, total: 0, totalPages: 0 }
   else if (path === '/api/goals/13/active-plan') data = plan
   else if (/^\/api\/goals\/(13|14)\/assistant$/.test(path)) {
     const currentResponse = structuredClone(response), gate = holdNext

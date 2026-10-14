@@ -1,4 +1,11 @@
 import { getJson, patchJson, postJson } from './client'
+import { readDraftPage } from '../utils/planDraft'
+
+export async function getDraftPlan(goalId) {
+  // The backend orders by createdAt/id descending; only the latest draft is needed.
+  const query = new URLSearchParams({ goalId, status: 'DRAFT', page: 1, size: 1 })
+  return readDraftPage(await getJson(`/api/plans?${query}`), goalId)
+}
 
 export async function getActivePlan(goalId) {
   return getJson(`/api/goals/${encodeURIComponent(goalId)}/active-plan`)

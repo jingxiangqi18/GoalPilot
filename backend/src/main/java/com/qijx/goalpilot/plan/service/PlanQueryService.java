@@ -10,9 +10,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.qijx.goalpilot.goal.entity.Goal;
 import com.qijx.goalpilot.goal.mapper.GoalMapper;
 import com.qijx.goalpilot.plan.domain.PlanStatus;
+import com.qijx.goalpilot.plan.dto.PlanPageResponse;
 import com.qijx.goalpilot.plan.dto.PlanSnapshotResponse;
 import com.qijx.goalpilot.plan.dto.PlanStageResponse;
 import com.qijx.goalpilot.plan.dto.PlanTaskResponse;
@@ -43,15 +45,7 @@ public class PlanQueryService {
     }
 
     public PlanSnapshotResponse findCurrentActivePlan(Long userId, Long goalId){
-        Goal goal = goalMapper.selectOne(
-            new LambdaQueryWrapper<Goal>()
-                .eq(Goal::getId, goalId)
-                .eq(Goal::getUserId, userId)
-        );
-
-        if(goal == null){
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "目标不存在");
-        }
+        findOwnedGoal(userId, goalId);
 
         List<Plan> activePlans = planMapper.selectList(
             new LambdaQueryWrapper<Plan>()
@@ -74,6 +68,59 @@ public class PlanQueryService {
         }
 
         return buildSnapshot(plan);
+    }
+
+    public PlanPageResponse findPlanByStatus(
+        Long userId,
+        Long goalId,
+        PlanStatus status,
+        long page,
+        long size
+    ){
+        findOwnedGoal(userId, goalId);
+
+        if(status == null){
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "状态不能为空");
+        }
+
+        Page<Plan> planPage = new Page<>(page, size);
+
+        LambdaQueryWrapper<Plan> queryWrapper = new LambdaQueryWrapper<Plan>()
+            .eq(Plan::getGoalId, goalId)
+            .eq(Plan::getStatus, status)
+            .orderByDesc(Plan::getCreatedAt)
+            .orderByDesc(Plan::getId);
+
+        Page<Plan> resultPage = planMapper.selectPage(planPage, queryWrapper);
+
+        List<PlanSnapshotResponse> items = new ArrayList<>();
+
+        for(Plan plan : resultPage.getRecords()){
+            PlanSnapshotResponse snapshot = buildSnapshot(plan);
+            items.add(snapshot);
+        }
+
+        return new PlanPageResponse(
+            items,
+            resultPage.getCurrent(),
+            resultPage.getSize(),
+            resultPage.getTotal(),
+            resultPage.getPages()
+        );
+    }
+
+    private Goal findOwnedGoal(Long userId, Long goalId){
+        Goal goal = goalMapper.selectOne(
+            new LambdaQueryWrapper<Goal>()
+                .eq(Goal::getId, goalId)
+                .eq(Goal::getUserId, userId)
+        );
+
+        if(goal == null){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "目标不存在");
+        }
+
+        return goal;
     }
 
     private PlanSnapshotResponse buildSnapshot(Plan plan){

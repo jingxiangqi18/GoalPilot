@@ -3,7 +3,7 @@ import StudioBackdrop from './workspace/StudioBackdrop.vue'
 import AccountMenu from './workspace/AccountMenu.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { analyzeGoal, clarifyGoal, createGoal, getGoalDetails, getGoals } from '../api/goal'
-import { approvePlan, generatePlan, rejectPlan } from '../api/plan'
+import { approvePlan, generatePlan, getDraftPlan, rejectPlan } from '../api/plan'
 import WorkspaceSidebar from './workspace/WorkspaceSidebar.vue'
 import GoalComposer from './workspace/GoalComposer.vue'
 import RecentGoals from './workspace/RecentGoals.vue'
@@ -42,7 +42,7 @@ const useSavedPlan = ref(false)
 const sessionError = ref('')
 const chatSessions = ref({})
 const sessionId = ref(null)
-const planningMode = computed(() => selectedGoal.value?.id === activeGoalId.value && plan.value?.status !== 'ACTIVE' && Boolean(result.value || plan.value || directPlanGoal.value || errorMessage.value || (activeRequest.value && activeRequest.value !== 'goal-update')))
+const planningMode = computed(() => selectedGoal.value?.id === activeGoalId.value && plan.value?.status !== 'ACTIVE' && Boolean(result.value || plan.value || directPlanGoal.value || draftQueryError.value || errorMessage.value || (activeRequest.value && activeRequest.value !== 'goal-update')))
 function sessionFor(id) {
   return chatSessions.value[id] ??= { question: '', entries: [] }
 }
@@ -50,10 +50,10 @@ const activeGoalId = ref(null)
 const activeSavedText = ref('')
 const result = ref(null)
 const plan = ref(null)
+const draftQueryError = ref('')
 const planGoalStatus = ref('')
 const { pendingTask, taskBusy, taskFeedback, taskUpdatesBlocked, updateTask, refreshTasks } = usePlanTasks(plan, planGoalStatus, syncPlanSnapshot)
 const planActionBlocked = ref(false)
-watch(() => plan.value?.planId, () => { planActionBlocked.value = false })
 const availableDraftGoalId = computed(() => plan.value?.status === 'DRAFT' && !planActionBlocked.value ? plan.value.goalId : null)
 const errorMessage = ref('')
 const errorTitle = ref('请求没有完成')
@@ -279,18 +279,110 @@ async function submitClarification() {
   }
 }
 
+function preparePlanJourney(goal, preserveComposer = false) {
+  const previousText = goalText.value, previousDetails = goalDetails.value
+  if (activeGoalId.value !== goal.id) clearJourney()
+  activeGoalId.value = goal.id
+  activeSavedText.value = goal.goalText || ''
+  goalText.value = preserveComposer ? previousText : activeSavedText.value
+  goalDetails.value = preserveComposer ? previousDetails : {}
+}
+
+function restoreDraft(draft) {
+  plan.value = draft ? normalizePlan(draft) : null
+  planGoalStatus.value = 'READY_TO_PLAN'
+  planActionBlocked.value = false
+  useSavedPlan.value = false
+  draftQueryError.value = ''
+}
+
+// Read the goal as well: a draft may have been approved in another tab.
+async function readCurrentDraft(goalId, isCurrent) {
+  const goal = await getGoalDetails(goalId)
+  if (!isCurrent()) return
+  if (goal?.id !== goalId || !goal.status) throw new Error('返回的目标信息不完整，请重新读取。')
+  const draft = goal.status === 'READY_TO_PLAN' ? await getDraftPlan(goalId) : null
+  if (!isCurrent()) return
+  selectedGoal.value = goal
+  if (goal.status === 'READY_TO_PLAN') restoreDraft(draft)
+  else {
+    plan.value = null
+    result.value = null
+    directPlanGoal.value = null
+    useSavedPlan.value = true
+    draftQueryError.value = ''
+  }
+  return { goal, draft }
+}
+
+async function reloadGoalDraft() {
+  if (activeRequest.value || !selectedGoal.value) return
+  const goalId = selectedGoal.value.id, request = detailRequest
+  const isCurrent = () => request === detailRequest && selectedGoal.value?.id === goalId
+  activeRequest.value = 'plan-query'
+  errorMessage.value = ''
+  draftQueryError.value = ''
+  try {
+    await readCurrentDraft(goalId, isCurrent)
+  } catch (error) {
+    if (isCurrent()) {
+      planActionBlocked.value = true
+      draftQueryError.value = error.message || '草稿暂时无法读取，请重试。'
+    }
+  } finally {
+    activeRequest.value = null
+  }
+}
+
 async function requestPlan(goalId) {
   if (activeRequest.value || !goalId) return
-  activeRequest.value = 'plan'
+  const request = detailRequest
+  const isCurrent = () => request === detailRequest && selectedGoal.value?.id === goalId
+  activeRequest.value = 'plan-query'
   errorMessage.value = ''
+  draftQueryError.value = ''
+  // Retain a rejected version on a failed regeneration, but never reuse it as a draft.
+  const previousPlan = plan.value
   try {
-    plan.value = normalizePlan(await generatePlan(goalId))
-    planGoalStatus.value = 'READY_TO_PLAN'
+    const current = await readCurrentDraft(goalId, isCurrent)
+    if (!current || !isCurrent()) return
+    if (current.goal.status !== 'READY_TO_PLAN') {
+      if (current.goal.status === 'ACTIVE') sessionView.value?.openPanel('plan')
+      else setRequestError('目标状态已变化', new Error('请根据目标的最新状态继续操作。'))
+      return
+    }
+    if (!current.draft) {
+      activeRequest.value = 'plan'
+      try {
+        const generated = await generatePlan(goalId)
+        if (!isCurrent()) return
+        restoreDraft(generated)
+      } catch (error) {
+        if (!isCurrent()) return
+        // A lost response or concurrent generation can leave a saved draft.
+        // Reconcile by GET only; never automatically repeat the POST.
+        if (error?.status === 409 || error?.status === 0 || error?.status >= 500) {
+          activeRequest.value = 'plan-query'
+          const recovered = await readCurrentDraft(goalId, isCurrent)
+          if (!recovered || !isCurrent()) return
+          if (recovered.goal.status !== 'READY_TO_PLAN') {
+            if (recovered.goal.status === 'ACTIVE') sessionView.value?.openPanel('plan')
+            else setRequestError('目标状态已变化', new Error('请根据目标的最新状态继续操作。'))
+            return
+          }
+          if (!recovered.draft) { activeRequest.value = 'plan'; throw error }
+        } else throw error
+      }
+    }
     if (activeView.value === 'session' && selectedGoal.value?.id === goalId) { await nextTick(); sessionView.value?.openPanel('plan') }
     scrollToTop()
   } catch (error) {
-    if (plan.value?.status === 'REJECTED') handlePlanDecisionError('计划生成没有完成', error)
-    else setRequestError('计划生成没有完成', error)
+    if (!isCurrent()) return
+    if (previousPlan?.status === 'REJECTED') plan.value = previousPlan
+    if (activeRequest.value === 'plan-query') {
+      draftQueryError.value = error.message || '草稿暂时无法读取，请重试。'
+      planActionBlocked.value = true
+    } else setRequestError('计划生成没有完成', error)
   } finally {
     activeRequest.value = null
   }
@@ -303,10 +395,12 @@ async function createPlan() {
 
 async function approveCurrentPlan() {
   if (activeRequest.value || planActionBlocked.value || !plan.value?.planId || plan.value.status !== 'DRAFT') return
+  const original = plan.value, request = detailRequest
   activeRequest.value = 'approval'
   errorMessage.value = ''
   try {
-    const approved = await approvePlan(plan.value.planId)
+    const approved = await approvePlan(original.planId)
+    if (request !== detailRequest || plan.value?.planId !== original.planId) return
     planGoalStatus.value = approved?.goalStatus || 'ACTIVE'
     updateSelectedStatus(planGoalStatus.value)
     plan.value = {
@@ -324,6 +418,7 @@ async function approveCurrentPlan() {
     await refreshGoalLists(1)
     scrollToTop()
   } catch (error) {
+    if (request !== detailRequest || plan.value?.planId !== original.planId) return
     handlePlanDecisionError('计划确认没有完成', error)
   } finally {
     activeRequest.value = null
@@ -334,21 +429,24 @@ function handlePlanDecisionError(title, error) {
   if (error?.status === 409 || error?.status === 404) {
     planActionBlocked.value = true
     errorTitle.value = error.status === 409 ? '这版草稿的状态已变化' : '这版草稿已无法读取'
-    errorMessage.value = '当前页面可能不是最新状态，已暂停此版本的后续操作。请到目标库查看最新状态；这里不会自动重新生成计划。'
+    errorMessage.value = '此版本的操作已暂停。请刷新草稿，核对最新状态后再操作。'
     refreshGoalLists(goalPage.value)
   } else setRequestError(title, error)
 }
 
 async function rejectCurrentPlan() {
   if (activeRequest.value || planActionBlocked.value || !plan.value?.planId || plan.value.status !== 'DRAFT') return
+  const original = plan.value, request = detailRequest
   activeRequest.value = 'rejection'
   errorMessage.value = ''
   try {
-    await rejectPlan(plan.value.planId)
+    await rejectPlan(original.planId)
+    if (request !== detailRequest || plan.value?.planId !== original.planId) return
     // Rejection does not delete the goal or change its READY_TO_PLAN state.
     plan.value = { ...plan.value, status: 'REJECTED' }
     await refreshGoalLists(goalPage.value)
   } catch (error) {
+    if (request !== detailRequest || plan.value?.planId !== original.planId) return
     handlePlanDecisionError('这版草稿暂未放弃', error)
   } finally {
     activeRequest.value = null
@@ -409,14 +507,10 @@ function syncGoalDetails(goal) {
 async function generateGoalPlan(goal) {
   if (activeRequest.value || !goal?.id) return
   if (availableDraftGoalId.value === goal.id || (plan.value?.goalId === goal.id && plan.value.status === 'REJECTED')) {
-    showSession(goal, 'plan')
-    return
+    // Cached content is only a preview; reread before allowing another decision.
+    return openGoalDetails(goal.id, 'plan')
   }
-  if (activeGoalId.value !== goal.id) clearJourney()
-  goalText.value = goal.goalText || ''
-  goalDetails.value = {}
-  activeGoalId.value = goal.id
-  activeSavedText.value = goal.goalText || ''
+  preparePlanJourney(goal)
   directPlanGoal.value = goal
   showSession(goal)
   await nextTick()
@@ -431,6 +525,8 @@ function clearJourney() {
   activeSavedText.value = ''
   result.value = null
   plan.value = null
+  draftQueryError.value = ''
+  planActionBlocked.value = false
   errorMessage.value = ''
   clarificationAnswers.value = []
   directPlanGoal.value = null
@@ -499,6 +595,26 @@ async function openGoalDetails(goalId, panel = '') {
     if (request !== detailRequest) return
     if (goal?.id !== goalId || !goal.status) throw new Error('返回的目标信息不完整，请重新读取。')
     selectedGoal.value = goal
+    if (goal.status === 'READY_TO_PLAN') {
+      preparePlanJourney(goal, true)
+      planActionBlocked.value = true
+      draftQueryError.value = ''
+      errorMessage.value = ''
+      try {
+        const draft = await getDraftPlan(goalId)
+        if (request !== detailRequest) return
+        restoreDraft(draft)
+        errorMessage.value = ''
+      } catch (error) {
+        if (request !== detailRequest) return
+        draftQueryError.value = error.message || '草稿暂时无法读取，请重试。'
+      }
+    } else if (goalId === activeGoalId.value && plan.value?.status !== 'ACTIVE') {
+      plan.value = null
+      draftQueryError.value = ''
+      errorMessage.value = ''
+      if (goal.status === 'ACTIVE') { result.value = null; directPlanGoal.value = null }
+    }
     if (goalId === activeGoalId.value && plan.value?.status === 'ACTIVE') planGoalStatus.value = goal.status
   } catch (error) {
     if (request !== detailRequest) return
@@ -578,10 +694,13 @@ onBeforeUnmount(() => {
           <GoalSessionView v-else :key="selectedGoal.id" ref="sessionView" :goal="selectedGoal" :session="sessionFor(selectedGoal.id)" :initial-panel="sessionPanel" :busy="!!activeRequest" :has-draft="availableDraftGoalId === selectedGoal.id" @back="reviewGoalState" @analyze="continueGoal(selectedGoal)" @generate="generateGoalPlan(selectedGoal)" @updated="syncPlanSnapshot" @goal-updated="syncGoalDetails" @edit-busy="setGoalEditBusy" @new-task="taskStateFor(selectedGoal.id).open = true">
             <template #tasks="{ active }"><TaskDesk :state="taskStateFor(selectedGoal.id)" :edit-for="taskEditFor" :remove-task="removeInboxTask" :goal="selectedGoal" :goals="recentItems" :active="active" @save-edit="saveTaskEdit" @reset-edit="resetTaskEdit" @set-status="setInboxTaskStatus" @load="loadTasks(taskStateFor(selectedGoal.id), $event)" @submit="submitTask(taskStateFor(selectedGoal.id))" @inbox="navigate('tasks')" @library="navigate('library')" @open-goal="openGoalDetails" /></template>
             <template v-if="planningMode" #conversation>
-              <PlanningConversation v-model:answers="clarificationAnswers" :goal="selectedGoal" :result="result" :plan="plan" :active-request="activeRequest" :error-message="errorMessage" :error-title="errorTitle" @analyze="submitGoal" @clarify="submitClarification" @generate-plan="createPlan" @open-plan="sessionView?.openPanel('plan')" @open-info="sessionView?.openPanel('info')" />
+              <PlanningConversation v-model:answers="clarificationAnswers" :goal="selectedGoal" :result="result" :plan="plan" :active-request="activeRequest" :draft-query-error="draftQueryError" :error-message="errorMessage" :error-title="errorTitle" @reload-draft="reloadGoalDraft" @analyze="submitGoal" @clarify="submitClarification" @generate-plan="createPlan" @open-plan="sessionView?.openPanel('plan')" @open-info="sessionView?.openPanel('info')" />
             </template>
-            <template v-if="selectedGoal.id === activeGoalId && plan && !useSavedPlan" #plan>
-              <PlanRoadmap :plan="plan" :active-request="activeRequest" :error-title="errorTitle" :error-message="errorMessage" :action-blocked="planActionBlocked" :goal-status="planGoalStatus" :pending-task="pendingTask" :task-busy="taskBusy" :task-feedback="taskFeedback" :task-updates-blocked="taskUpdatesBlocked" @update-task="updateTask" @refresh-tasks="refreshTasks" @approve="approveCurrentPlan" @reject="rejectCurrentPlan" @regenerate="regenerateCurrentPlan" @open-library="reviewGoalState" @reset="resetAll" @dismiss-error="errorMessage = ''" @ask-assistant="sessionView?.askAssistant($event)" />
+            <template v-if="selectedGoal.id === activeGoalId && ((plan && !useSavedPlan) || selectedGoal.status === 'READY_TO_PLAN')" #plan>
+              <div v-if="selectedGoal.status === 'READY_TO_PLAN'" class="draft-tools"><span>计划草稿</span><button type="button" :disabled="!!activeRequest" @click="reloadGoalDraft">{{ activeRequest === 'plan-query' ? '正在读取…' : '刷新草稿' }}</button></div>
+              <div v-if="draftQueryError" class="draft-query-error" role="alert"><strong>草稿读取失败</strong><p>{{ draftQueryError }}</p><button type="button" :disabled="!!activeRequest" @click="reloadGoalDraft">重新读取草稿</button></div>
+              <PlanRoadmap v-if="plan" :plan="plan" :active-request="activeRequest" :error-title="errorTitle" :error-message="errorMessage" :action-blocked="planActionBlocked" :goal-status="planGoalStatus" :pending-task="pendingTask" :task-busy="taskBusy" :task-feedback="taskFeedback" :task-updates-blocked="taskUpdatesBlocked" @update-task="updateTask" @refresh-tasks="refreshTasks" @approve="approveCurrentPlan" @reject="rejectCurrentPlan" @regenerate="regenerateCurrentPlan" @open-library="reviewGoalState" @reset="resetAll" @dismiss-error="errorMessage = ''" @ask-assistant="sessionView?.askAssistant($event)" />
+              <div v-else-if="!draftQueryError" class="draft-empty" :aria-busy="!!activeRequest"><span aria-hidden="true">◇</span><h3>{{ activeRequest === 'plan' ? '正在整理阶段与任务' : activeRequest === 'plan-query' ? '正在读取计划草稿' : '还没有计划草稿' }}</h3><p v-if="errorMessage" role="alert">{{ errorMessage }}</p><button v-if="!activeRequest" type="button" @click="createPlan">生成计划草稿 ↗</button></div>
             </template>
           </GoalSessionView>
         </template>
@@ -593,6 +712,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .workspace-shell { min-height: 100dvh; background: var(--canvas); color: var(--ink); }
+.draft-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 0 16px; color: var(--ink-500); font-size: 12px; }
+.draft-tools button, .draft-empty button, .draft-query-error button { padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); color: var(--accent-deep); font-size: 12px; }
+.draft-empty { display: grid; justify-items: center; gap: 16px; padding: 42px 20px; background: var(--canvas-soft); text-align: center; }.draft-empty > span { font-size: 32px; color: var(--accent); }.draft-empty h3 { margin: 0; font-size: 16px; font-weight: 500; }.draft-empty p { color: var(--danger); font-size: 12px; }
+.draft-query-error { padding: 16px; margin-bottom: 16px; background: var(--danger-soft); color: var(--danger); font-size: 12px; line-height: 1.8; }.draft-query-error p { margin: 6px 0 12px; }
 .workspace-main { position: relative; isolation: isolate; min-height: 100dvh; margin-left: 248px; display: flex; flex-direction: column; background: var(--canvas); }
 .topbar { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 20px; height: 65px; padding: 0 28px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 66%, transparent); }
 .space-name { color: var(--ink-500); font-size: 12px; }.space-name i { display: inline-block; margin: 0 10px; color: var(--ink-500); font-size: 17px; font-style: normal; }

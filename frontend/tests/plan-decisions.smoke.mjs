@@ -19,7 +19,7 @@ page.on('console', message => { if (message.type() === 'warning' && message.text
 const requests = []
 const goal = { id: 12, goalText: '完成一个能够独立部署的 Java 后端项目', status: 'READY_TO_PLAN', createdAt: '2026-09-07T10:00:00' }
 let planId = 76
-let planStatus = 'DRAFT'
+let planStatus = null
 let rejectionStatus = 204
 let approvalStatus = 200
 let generationStatus = 201
@@ -42,6 +42,7 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
   if (path === '/api/auth/me') data = { id: 1, username: 'Jakin', email: 'jakin@example.com' }
   else if (path === '/api/goals') data = { items: [goal], page: 1, total: 1, totalPages: 1 }
   else if (path === '/api/goals/12') data = goal
+  else if (path === '/api/plans') data = { items: planStatus === 'DRAFT' ? [plan()] : [], page: 1, size: 1, total: planStatus === 'DRAFT' ? 1 : 0, totalPages: planStatus === 'DRAFT' ? 1 : 0 }
   else if (path === '/api/plans/generate') {
     status = generationStatus
     if (status === 201) { planId++; planStatus = 'DRAFT'; data = plan() }

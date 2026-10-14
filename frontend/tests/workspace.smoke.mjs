@@ -21,6 +21,7 @@ let queryStatus = 200
 let failClarification = false
 let generateStatus = 200, goalReadStatus = 200, delayedGoal = null
 let savedGoal = null
+let generated = false
 const items = [
   { id: 11, goalText: '做一个可以展示的 Java 项目', status: 'DRAFT' },
   { id: 12, goalText: '建立自己的阅读系统', status: 'READY_TO_PLAN' },
@@ -63,7 +64,8 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
     if (failClarification) { status = 502; data = { message: '模拟补充信息提交失败' }; failClarification = false }
     else { data = { ...analysis, analysisId: 92, readiness: 'READY', clarificationQuestions: [], missingInformation: [] }; if (savedGoal) savedGoal.status = 'READY_TO_PLAN' }
   }
-  else if (path === '/api/plans/generate') { status = generateStatus; data = status === 200 ? plan : { message: '模拟计划生成失败' } }
+  else if (path === '/api/plans') { const exists = generated && plan.status === 'DRAFT' && plan.goalId === Number(new URL(req.url()).searchParams.get('goalId')); data = { items: exists ? [plan] : [], page: 1, size: 1, total: exists ? 1 : 0, totalPages: exists ? 1 : 0 } }
+  else if (path === '/api/plans/generate') { status = generateStatus; data = status === 200 ? plan : { message: '模拟计划生成失败' }; if (status === 200) generated = true }
   else if (path === '/api/plans/77/approve') { data = { planStatus: 'ACTIVE', goalStatus: 'ACTIVE', versionNumber: 1 }; plan.status = 'ACTIVE'; savedGoal.status = 'ACTIVE' }
   else if (path.endsWith('/assistant')) data = { reply: '当前正式计划分为两个阶段。先搭建基础，再完成核心功能。' }
   else if (path.startsWith('/api/goals/')) { const id = Number(path.split('/').at(-1)); const gate = id === 11 ? delayedGoal : null; if (gate) await gate; data = items.find(goal => goal.id === id); status = data ? goalReadStatus : 404; if (status !== 200) data = { message: '模拟目标读取失败' } }

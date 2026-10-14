@@ -4,15 +4,15 @@ import AssistantReply from './AssistantReply.vue'
 import AgentSignal from './AgentSignal.vue'
 
 const answers = defineModel('answers', { type: Array, required: true })
-const props = defineProps({ goal: Object, result: Object, plan: Object, activeRequest: String, errorMessage: String, errorTitle: String })
-const emit = defineEmits(['analyze', 'clarify', 'generate-plan', 'open-plan', 'open-info'])
+const props = defineProps({ goal: Object, result: Object, plan: Object, activeRequest: String, errorMessage: String, errorTitle: String, draftQueryError: String })
+const emit = defineEmits(['analyze', 'clarify', 'generate-plan', 'open-plan', 'open-info', 'reload-draft'])
 const activeIndex = ref(0)
 const input = ref(null)
 const questions = computed(() => props.result?.readiness === 'READY' ? [] : props.result?.clarificationQuestions || [])
 const current = computed(() => questions.value[activeIndex.value])
 const complete = computed(() => questions.value.length && questions.value.every((question, index) => question.questionId && answers.value[index]?.trim() && answers.value[index].length <= 1000))
 const filledCount = computed(() => questions.value.filter((_, index) => answers.value[index]?.trim()).length)
-const pendingLabel = computed(() => ({ analysis: '正在理解你的目标…', clarification: '正在根据回答更新分析…', plan: '正在整理阶段与任务…', approval: '正在启用这份计划…', rejection: '正在保存你的选择…' })[props.activeRequest])
+const pendingLabel = computed(() => ({ analysis: '正在理解你的目标…', clarification: '正在根据回答更新分析…', 'plan-query': '正在读取计划草稿…', plan: '正在整理阶段与任务…', approval: '正在启用这份计划…', rejection: '正在保存你的选择…' })[props.activeRequest])
 watch([() => props.result?.analysisId, () => questions.value.length], () => { activeIndex.value = 0 })
 async function select(index) {
   if (props.activeRequest) return
@@ -36,14 +36,15 @@ async function select(index) {
           </template>
           <p v-else class="readiness-copy">{{ goal.status === 'READY_TO_PLAN' ? '目标信息已经准备好，可以开始整理阶段与任务。' : '目标已经保存。接下来先理解你的方向，再一起补充必要的信息。' }}</p>
           <div v-if="plan" class="plan-artifact"><span class="artifact-icon" aria-hidden="true">☷</span><div><small>{{ plan.status === 'REJECTED' ? '未采用的计划草稿' : '待你确认的计划草稿' }}</small><strong>{{ plan.planTitle }}</strong><p>{{ plan.stages.length }} 个阶段 · 确认后才会正式启用</p></div><button type="button" @click="$emit('open-plan')">打开草稿 ↗</button></div>
-          <button v-else-if="result?.readiness === 'READY' || goal.status === 'READY_TO_PLAN'" type="button" class="inline-action" :disabled="!!activeRequest" @click="$emit('generate-plan')">{{ errorMessage ? '重试生成计划' : '生成计划草稿' }} <span>↗</span></button>
-          <button v-else-if="!result && !activeRequest" type="button" class="inline-action" @click="$emit('analyze')">{{ errorMessage ? '重新分析目标' : '开始分析目标' }} <span>↗</span></button>
+          <button v-else-if="!draftQueryError && (result?.readiness === 'READY' || goal.status === 'READY_TO_PLAN')" type="button" class="inline-action" :disabled="!!activeRequest" @click="$emit('generate-plan')">{{ errorMessage ? '重试生成计划' : '生成计划草稿' }} <span>↗</span></button>
+          <button v-else-if="!result && !activeRequest && !draftQueryError" type="button" class="inline-action" @click="$emit('analyze')">{{ errorMessage ? '重新分析目标' : '开始分析目标' }} <span>↗</span></button>
           <div v-if="filledCount" class="answer-review"><h3>已填写的补充 <small>提交前可修改</small></h3><button v-for="(question, index) in questions" v-show="answers[index]?.trim()" :key="question.questionId || index" type="button" :disabled="!!activeRequest" @click="select(index)"><span>{{ question.question }}</span><p>{{ answers[index] }}</p></button></div>
           <p v-if="pendingLabel" class="planning-pending" role="status"><i></i>{{ pendingLabel }}</p>
         </article>
       </div>
     </div>
     <div class="planning-dock">
+      <div v-if="draftQueryError" class="planning-error" role="alert"><strong>草稿读取失败</strong><p>{{ draftQueryError }}</p><button type="button" class="inline-action" :disabled="!!activeRequest" @click="$emit('reload-draft')">重新读取草稿</button></div>
       <div v-if="errorMessage && !plan" class="planning-error" role="alert"><strong>{{ errorTitle }}</strong><p>{{ errorMessage }}</p></div>
       <form v-if="current && !plan" class="clarification-composer agent-input-surface" :class="{ 'is-working': !!pendingLabel }" @submit.prevent="complete ? emit('clarify') : select(Math.min(activeIndex + 1, questions.length - 1))">
         <nav class="question-index" aria-label="澄清问题导航"><button v-for="(question, index) in questions" :key="question.questionId || index" type="button" :aria-label="`问题 ${index + 1}：${question.question}`" :aria-current="activeIndex === index ? 'step' : undefined" :class="{ active: activeIndex === index }" :disabled="!!activeRequest" @click="select(index)">{{ answers[index]?.trim() ? '✓' : index + 1 }}</button><span>已填写 {{ filledCount }} 项，共 {{ questions.length }} 项</span></nav>

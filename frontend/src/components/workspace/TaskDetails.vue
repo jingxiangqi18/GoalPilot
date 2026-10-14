@@ -1,5 +1,6 @@
 <script setup>
 import DateStamp from './DateStamp.vue'
+import TrashIcon from '../ui/TrashIcon.vue'
 import WorldArt from './WorldArt.vue'
 import PixelSelect from '../ui/PixelSelect.vue'
 import PixelDateTimePicker from '../ui/PixelDateTimePicker.vue'
@@ -46,7 +47,7 @@ const priorities = { LOW: '低优先级', MEDIUM: '中优先级', HIGH: '高优�
       <dt>创建时间</dt><dd><DateStamp :value="task.createdAt" label="" compact /></dd>
       <template v-if="task.completedAt"><dt>{{ task.status === 'DONE' ? '完成时间' : '上次完成' }}</dt><dd><DateStamp :value="task.completedAt" label="" compact /></dd></template>
     </dl>
-    <button type="button" class="delete-task" :disabled="editState.pending || editState.blocked || refreshing" @click="$emit('delete')">删除任务</button>
+    <button type="button" class="delete-task" :disabled="editState.pending || editState.blocked || refreshing" @click="$emit('delete')"><TrashIcon /><span>删除任务</span></button>
   </aside>
 </template>
 
@@ -56,7 +57,12 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 h2 { margin: 20px 0 14px; font-size: 20px; line-height: 1.7; font-weight: 600; overflow-wrap: anywhere; }.detail-tags { display: flex; flex-wrap: wrap; gap: 7px; }.detail-tags span { padding: 5px 8px; background: #e2eadc; font-size: 11px; }.detail-tags .important { color: #87582a; background: #f0e5cd; }
 dl { margin: 24px 0 0; }dt { margin: 19px 0 8px; color: var(--ink-500); font-size: 11px; }dd { margin: 0; font-size: 13px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }.muted { color: var(--ink-500); }.goal-link { padding: 0; border: 0; background: none; text-align: left; line-height: inherit; }
 .detail-art { width: 68px; height: 68px; margin-left: auto; }
-.delete-task { margin-top: 24px; padding: 8px 0; color: var(--danger); border: 0; background: none; font-size: 12px; }
+.delete-task { display: inline-flex; align-items: center; gap: 9px; min-height: 40px; margin-top: 24px; padding: 8px 12px; color: var(--ink-600); border: 1px solid transparent; border-radius: 5px; background: color-mix(in srgb, var(--paper) 65%, transparent); font-size: 12px; transition: color .18s, background .18s, border-color .18s; }
+.delete-task:hover:not(:disabled), .delete-task:focus-visible { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 20%, transparent); }
+.delete-task:focus-visible { outline: 2px solid var(--danger); outline-offset: 3px; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .delete-task:hover:not(:disabled) :deep(.trash-lid) { transform: translateY(-1px) rotate(8deg); }
+}
 .task-edit-form { margin-top: 24px; }fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }.edit-field { display: grid; gap: 9px; margin: 0 0 18px; }.edit-field label { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 12px; }.edit-field small { color: var(--ink-500); font-size: 10px; font-weight: 400; line-height: 1.8; }textarea { width: 100%; min-height: 68px; max-height: 220px; resize: vertical; padding: 10px; color: var(--ink); border: 1px solid var(--line-strong); border-radius: 3px; background: var(--paper); font: 13px/1.85 var(--text-cn); }textarea:focus { outline: 2px solid var(--accent); outline-offset: 2px; }.field-error { margin: 0; font-size: 11px; color: var(--danger); }
 .edit-error { padding: 12px; background: var(--danger-soft); color: var(--danger); font-size: 12px; line-height: 1.8; }.edit-error p { margin: 0; }.edit-error small { display: block; margin-top: 8px; font-size: 11px; }.edit-error button { padding: 7px 9px; margin-top: 10px; border: 1px solid var(--line-strong); background: var(--paper); }.edit-notice { margin: 12px 0; padding: 10px; background: #e4eddf; color: #3c624a; font-size: 12px; line-height: 1.8; }
 footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 0 0; border-top: 1px dashed var(--line-strong); }footer small { color: var(--ink-500); font-size: 10px; }footer > div { display: flex; gap: 8px; margin-left: auto; }footer button { padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 2px; background: var(--paper); font-size: 12px; }footer .save-task-edit { color: var(--paper); background: var(--accent-deep); border-color: var(--accent-deep); }button:disabled { opacity: .5; cursor: not-allowed; }

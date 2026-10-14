@@ -20,6 +20,7 @@ const requests = []
 const goal = { id: 13, goalText: '完成一个可以部署的 Java 后端项目', status: 'READY_TO_PLAN', createdAt: '2026-09-08T09:00:00' }
 const otherGoal = { id: 14, goalText: '建立一个长期阅读习惯', status: 'ACTIVE', createdAt: goal.createdAt }
 let showOtherGoal = false
+let generated = false
 const plan = {
   planId: 77, goalId: 13, status: 'DRAFT', versionNumber: null, planTitle: '从项目骨架到独立交付', planSummary: '先实现一个完整的小功能，再逐步完善测试与部署。', createdAt: goal.createdAt,
   stages: ['搭建基础', '验证与交付'].map((title, stageIndex) => ({ stageId: 20 + stageIndex, title, timeRange: stageIndex ? '第 3 至 4 周' : '第 1 至 2 周', objective: '交付一个可独立验证的阶段成果。', tasks: ['整理方案', '完成验证'].map((task, index) => ({ taskId: 100 + stageIndex * 2 + index, title: title + ' · ' + task, status: 'TODO', sortOrder: index + 1, description: '记录输入和输出，完成实现并保留测试过程。', completionCriteria: '本地运行成功，并提供可以复现的验证步骤。' })) })),
@@ -37,7 +38,8 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
   else if (path === '/api/goals/14') data = otherGoal
   else if (path === '/api/goals/13/active-plan') { status = readStatus; data = status === 200 ? plan : { message: '当前没有可用计划' } }
   else if (path === '/api/goals/14/active-plan') data = otherPlan
-  else if (path === '/api/plans/generate') data = plan
+  else if (path === '/api/plans') { const exists = generated && plan.status === 'DRAFT'; data = { items: exists ? [plan] : [], page: 1, size: 1, total: exists ? 1 : 0, totalPages: exists ? 1 : 0 } }
+  else if (path === '/api/plans/generate') { data = plan; generated = true }
   else if (path === '/api/plans/77/approve') { goal.status = 'ACTIVE'; plan.status = 'ACTIVE'; plan.versionNumber = 1; data = { planStatus: 'ACTIVE', goalStatus: 'ACTIVE', versionNumber: 1, updatedAt: '2026-09-08T09:10:00' } }
   else if (/^\/api\/tasks\/\d+\/status$/.test(path)) {
     if (holdPatch) await holdPatch

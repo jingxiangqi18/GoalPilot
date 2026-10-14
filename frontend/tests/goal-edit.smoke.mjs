@@ -17,6 +17,7 @@ const goals = ['DRAFT', 'ACTIVE', 'COMPLETED', 'ARCHIVED', 'READY_TO_PLAN', 'NEE
 }))
 let patchStatus = 200, readStatus = 200, malformed = false, commitOnFailure = false, abortPatch = false, failAnalysis = false
 let hold = null, release
+let savedDraft = null
 const requests = [], errors = []
 await context.route(url => url.pathname.startsWith('/api/'), async route => {
   const request = route.request(), url = new URL(request.url()), path = url.pathname
@@ -46,8 +47,12 @@ await context.route(url => url.pathname.startsWith('/api/'), async route => {
     const goal = goals.find(goal => goal.id === Number(path.split('/')[3]))
     if (!failAnalysis) goal.status = 'READY_TO_PLAN'
     data = failAnalysis ? { message: '模拟分析失败' } : { analysisId: 55, goalId: goal.id, readiness: 'READY', goalSummary: goal.goalText, knownInformation: [], missingInformation: [], clarificationQuestions: [] }
+  } else if (path === '/api/plans') {
+    const exists = savedDraft?.goalId === Number(url.searchParams.get('goalId'))
+    data = { items: exists ? [savedDraft] : [], page: 1, size: 1, total: exists ? 1 : 0, totalPages: exists ? 1 : 0 }
   } else if (path === '/api/plans/generate') {
     data = { planId: 90, goalId: body.goalId, status: 'DRAFT', planTitle: '保留这份待确认的计划', planSummary: '先完成基础功能，再验证交付。', createdAt: '2026-09-21T20:00:00', stages: [{ stageId: 91, title: '基础实现', objective: '可以运行', timeRange: '第一周', tasks: [{ taskId: 92, title: '搭建环境', description: '配置项目', completionCriteria: '能够启动', status: 'TODO' }] }] }
+    savedDraft = data
   } else { errors.push('Unexpected API ' + path); status = 500; data = {} }
   await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
 })

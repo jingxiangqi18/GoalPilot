@@ -95,13 +95,15 @@ public class TaskService {
     }
 
     public TaskResponse updateTask(Long userId, Long taskId, TaskUpdateRequest request){
-        findOwnedTask(userId, taskId);
+        Task task = findOwnedTask(userId, taskId);
 
         if(Boolean.TRUE.equals(request.clearDeadline()) && request.deadline() != null){
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能同时设置和清除截止时间");
         }
 
         boolean hasUpdates = false;
+
+        LocalDateTime now = LocalDateTime.now();
 
         LambdaUpdateWrapper<Task> updateWrapper = 
             new LambdaUpdateWrapper<Task>()
@@ -144,6 +146,22 @@ public class TaskService {
             hasUpdates = true;
         }
 
+        
+        if(request.status() != null){
+            updateWrapper.eq(Task::getStatus, task.getStatus());
+            
+            if(request.status() != task.getStatus()){
+                updateWrapper.set(Task::getStatus, request.status());
+                if(request.status() == TaskStatus.DONE){
+                    updateWrapper.set(Task::getCompletedAt, now);
+                }else{
+                    updateWrapper.set(Task::getCompletedAt, null);
+                }
+            }
+
+            hasUpdates = true;
+        }
+
         if(Boolean.TRUE.equals(request.clearDeadline())){
             updateWrapper.set(Task::getDeadline, null);
             hasUpdates = true;
@@ -156,7 +174,7 @@ public class TaskService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "至少提供一个更新字段");
         }
 
-        updateWrapper.set(Task::getUpdatedAt, LocalDateTime.now());
+        updateWrapper.set(Task::getUpdatedAt, now);
 
         int updatedRows = taskMapper.update(null, updateWrapper);
 

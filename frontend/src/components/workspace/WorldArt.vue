@@ -16,13 +16,18 @@ import singaporeQuays from '../../assets/goalpilot-world-singapore-quays-v1.webp
 import singaporeShophouse from '../../assets/goalpilot-world-singapore-shophouse-v1.webp'
 import singaporeGardenEdge from '../../assets/goalpilot-world-singapore-garden-edge-v1.webp'
 import singaporeMrt from '../../assets/goalpilot-world-singapore-mrt-v1.webp'
+import nusCampus from '../../assets/goalpilot-world-nus-campus-v1.webp'
+import nusGreen from '../../assets/goalpilot-world-nus-green-v1.webp'
+import nusCommons from '../../assets/goalpilot-world-nus-commons-v1.webp'
+import nusStudy from '../../assets/goalpilot-world-nus-study-v1.webp'
 
 const props = defineProps({ asset: { type: String, default: 'harbor' }, sceneRole: String, identity: [String, Number], eager: Boolean })
 const { appearance } = useWorldAppearance()
 const selected = computed(() => props.sceneRole ? worldArtFor(appearance.scene, props.sceneRole, props.identity) : props.asset)
 const images = { harbor, garden, 'night-rail': night, 'garden-edge': gardenEdge, 'neighborhood-edge': neighborhood, viaduct, desk, 'reading-nook': reading,
   'singapore-atlas': singaporeAtlas, 'singapore-gardens': singaporeGardens, 'singapore-quays': singaporeQuays,
-  'singapore-shophouse': singaporeShophouse, 'singapore-garden-edge': singaporeGardenEdge, 'singapore-mrt': singaporeMrt }
+  'singapore-shophouse': singaporeShophouse, 'singapore-garden-edge': singaporeGardenEdge, 'singapore-mrt': singaporeMrt,
+  'nus-campus': nusCampus, 'nus-green': nusGreen, 'nus-commons': nusCommons, 'nus-study': nusStudy }
 const displayed = ref(selected.value)
 let imageRequest = 0
 watch(selected, async key => {
@@ -38,9 +43,9 @@ watch(selected, async key => {
 })
 onBeforeUnmount(() => { imageRequest++ })
 const dimensions = computed(() => {
-  if (displayed.value === 'singapore-atlas') return [1536, 1024]
+  if (['singapore-atlas', 'nus-campus'].includes(displayed.value)) return [1536, 1024]
   if (['garden-edge', 'neighborhood-edge', 'singapore-shophouse', 'singapore-garden-edge'].includes(displayed.value)) return [512, 768]
-  if (['desk', 'reading-nook'].includes(displayed.value)) return [640, 640]
+  if (['desk', 'reading-nook', 'nus-study'].includes(displayed.value)) return [640, 640]
   return [1536, 512]
 })
 </script>

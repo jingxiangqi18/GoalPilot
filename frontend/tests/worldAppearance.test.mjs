@@ -42,3 +42,19 @@ test('Singapore city assets are optimized and cutouts retain alpha', async () =>
     if (['shophouse', 'garden-edge', 'mrt'].includes(key)) assert.ok(bytes.includes(Buffer.from('ALPH')))
   }
 })
+
+test('NUS campus has its own page scenes, stable covers and local assets', async () => {
+  assert.equal(worldArtFor('nus', 'home'), 'nus-campus')
+  assert.equal(worldArtFor('nus', 'tasks'), 'nus-green')
+  assert.equal(worldArtFor('nus', 'library'), 'nus-commons')
+  for (const role of ['sidebar', 'auth', 'cover', 'left', 'right', 'footer', 'welcome', 'empty', 'work', 'study', 'wellness', 'detail']) assert.ok(worldArtFor('nus', role, 42).startsWith('nus-'))
+  const covers = new Map([1, 2, 3].map(id => [id, worldArtFor('nus', 'cover', id)]))
+  assert.equal(new Set(covers.values()).size, 3)
+  for (const id of [3, 1, 2]) assert.equal(worldArtFor('nus', 'cover', id), covers.get(id))
+  for (const key of ['campus', 'green', 'commons', 'study']) {
+    const bytes = await readFile(new URL(`../src/assets/goalpilot-world-nus-${key}-v1.webp`, import.meta.url))
+    assert.equal(bytes.subarray(8, 12).toString(), 'WEBP')
+    assert.ok(bytes.length < 800_000)
+    if (key === 'study') assert.ok(bytes.includes(Buffer.from('ALPH')), 'Campus cutout retains transparency')
+  }
+})

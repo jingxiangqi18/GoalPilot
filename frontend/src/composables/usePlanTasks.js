@@ -1,7 +1,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getGoalDetails } from '../api/goal'
 import { getActivePlan, updatePlanTaskStatus } from '../api/plan'
-import { replacePlanTask, taskStatusLabel, taskStatusOptions } from '../utils/planTasks'
+import { replacePlanTask, taskStatusOptions } from '../utils/planTasks'
 
 // Shared by the workbench and saved-plan page. The owning page keeps the snapshot;
 // a successful response replaces its task, without changing goal or plan status.
@@ -38,7 +38,6 @@ export function usePlanTasks(plan, goalStatus, onChanged = () => {}) {
         throw new Error('服务器未返回完整的任务状态，暂时无法确认保存结果。')
       }
       plan.value = replacePlanTask(plan.value, updated)
-      taskFeedback.value = { kind: 'success', taskId, message: `「${updated.title}」已保存为${taskStatusLabel(updated.status)}。` }
       onChanged({ plan: plan.value, goalStatus: goalStatus.value })
     } catch (error) {
       if (request !== epoch || error?.status === 401) return
@@ -72,7 +71,7 @@ export function usePlanTasks(plan, goalStatus, onChanged = () => {}) {
       goalStatus.value = goal.status
       plan.value = latest
       taskUpdatesBlocked.value = false
-      taskFeedback.value = { kind: 'info', message: goal.status === 'ACTIVE' ? '已读取最新任务状态，可以继续操作。' : '目标当前不在进行中，任务仅供查看。' }
+      taskFeedback.value = goal.status === 'ACTIVE' ? null : { kind: 'info', message: '目标当前不在进行中，任务仅供查看。' }
       onChanged({ plan: latest, goalStatus: goal.status })
     } catch (error) {
       if (request !== epoch || error?.status === 401) return

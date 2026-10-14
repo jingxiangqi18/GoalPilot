@@ -154,7 +154,18 @@ try {
     await shot('singapore-home-' + width + '-' + height)
     await page.getByRole('button', { name: '工作室外观', exact: true }).click()
     const panel = await page.locator('.appearance-panel').boundingBox()
-    assert.ok(panel.x >= 0 && panel.x + panel.width <= width && panel.y + panel.height <= height)
+    if (panel.x < 0 || panel.x + panel.width > width || panel.y + panel.height > height) {
+      console.log('Picker geometry', await page.evaluate(() => ({ scrollX, scrollY,
+        scrollers: [...document.querySelectorAll('*')].filter(el => el.scrollLeft).map(el => ({ name: el.className, scrollLeft: el.scrollLeft, width: el.clientWidth, scrollWidth: el.scrollWidth })),
+        elements: ['.workspace-main', '.topbar', '.world-appearance', '.appearance-panel'].map(selector => {
+          const el = document.querySelector(selector), r = el.getBoundingClientRect(), css = getComputedStyle(el)
+          return { selector, x: r.x, width: r.width, left: css.left, right: css.right, maxWidth: css.maxWidth, position: css.position }
+        })
+      })))
+      await page.screenshot({ path: join(artifacts, 'picker-overflow.png') })
+    }
+    assert.ok(panel.x >= 0 && panel.x + panel.width <= width && panel.y + panel.height <= height, JSON.stringify({ viewport: { width, height }, panel }))
+    assert.equal(await page.evaluate(() => scrollX), 0, 'Focusing a scene scrolls only the menu, not the page')
     await page.getByRole('button', { name: '新加坡', exact: true }).click()
     await page.keyboard.press('Escape')
     if (width > 800) await page.locator('.main-nav').getByRole('button', { name: /待办清单/ }).click()

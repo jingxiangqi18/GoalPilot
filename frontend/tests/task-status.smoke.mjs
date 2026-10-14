@@ -66,7 +66,8 @@ async function choose(index, name) {
   if (await taskCard(index).locator('.task-heading button').getAttribute('aria-expanded') !== 'true') await taskCard(index).locator('.task-heading button').click()
   await choice(index, name).click()
 }
-async function assertProgress(done) { assert.equal(await page.getByRole('progressbar', { name: '任务完成进度' }).getAttribute('aria-valuenow'), String(done)) }
+async function assertProgress(done) { await page.waitForFunction(value => document.querySelector('[role="progressbar"][aria-label="任务完成进度"]')?.getAttribute('aria-valuenow') === String(value), done) }
+async function status(index, label) { await taskCard(index).locator('.task-status:not(.saving)').filter({ hasText: label }).waitFor() }
 async function savedPage(goalText = goal.goalText) {
   await page.setViewportSize({ width: 1600, height: 1100 })
   await page.locator('.main-nav').getByRole('button', { name: /我的目标/ }).click()
@@ -77,7 +78,7 @@ async function savedPage(goalText = goal.goalText) {
 }
 async function reconcile() {
   await page.getByRole('button', { name: '重新读取状态' }).click()
-  await page.locator('.execution-notice.info').waitFor()
+  await page.locator('.execution-notice.error').waitFor({ state: 'detached' })
 }
 async function screenshot(name) { await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' })); await settle(); await page.screenshot({ path: join(artifacts, name + '.png'), fullPage: true }) }
 
@@ -105,8 +106,8 @@ try {
   await stage(1)
   assert.equal(await choice(0, '开始进行').isDisabled(), true)
   release(); holdPatch = null
-  await page.locator('.execution-notice.success').waitFor()
   await assertProgress(1)
+  assert.equal(await page.locator('.execution-notice.success').count(), 0)
   assert.equal(await page.locator('.stage-title').innerText(), '验证与交付', 'Saving must not jump back to stage one')
   const request = requests.find(request => request.method === 'PATCH')
   assert.equal(request.path, '/api/tasks/100/status')
@@ -115,13 +116,13 @@ try {
   assert.match(request.headers['content-type'], /application\/json/)
 
   await choose(0, '跳过任务')
-  await page.locator('.execution-notice.success').filter({ hasText: '已跳过' }).waitFor()
+  await status(0, '已跳过')
   await assertProgress(1)
   assert.match(await page.locator('.execution-progress').innerText(), /1 项已跳过/)
   await choose(0, '开始进行')
-  await page.locator('.execution-notice.success').filter({ hasText: '进行中' }).waitFor()
+  await status(0, '进行中')
   await choose(0, '设为待开始')
-  await page.locator('.execution-notice.success').filter({ hasText: '待开始' }).waitFor()
+  await status(0, '待开始')
   const beforeSame = patchCount()
   await choice(0, '待开始').dispatchEvent('click')
   assert.equal(patchCount(), beforeSame, 'Choosing the current state is a local no-op')
@@ -130,7 +131,7 @@ try {
     for (const taskIndex of [0, 1]) {
       if (plan.stages[index].tasks[taskIndex].status !== 'DONE') {
         await choose(taskIndex, '标记完成')
-        await page.locator('.execution-notice.success').filter({ hasText: plan.stages[index].tasks[taskIndex].title }).waitFor()
+        await status(taskIndex, '已完成')
       }
     }
   }
@@ -142,7 +143,7 @@ try {
   await assertProgress(4)
   assert.equal(await page.locator('.approve-button').count(), 0)
   await choose(0, '设为待开始')
-  await page.locator('.execution-notice.success').waitFor()
+  await status(0, '待开始')
   await assertProgress(3)
   await page.locator('.main-nav').getByRole('button', { name: '规划工作台' }).click()
   await page.locator('.session-tools').getByRole('button', { name: /计划与任务/ }).click()
@@ -209,7 +210,7 @@ try {
   }
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await choice(0, '开始进行').focus(); await page.keyboard.press('Enter')
-  await page.locator('.execution-notice.success').waitFor()
+  await status(0, '进行中')
   assert.match(await taskCard(0).locator('.task-status').innerText(), /进行中/)
 
   // Late responses from a closed page cannot change another goal's snapshot.

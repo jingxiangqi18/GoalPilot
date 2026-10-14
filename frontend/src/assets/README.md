@@ -1,5 +1,14 @@
 # GoalPilot decorative assets
 
+## NUS campus — October 13, 2026
+
+Four original pixel scenes add a campus-wide theme: a UTown-inspired atlas,
+Town Green morning, evening learning commons and a transparent reading garden.
+Generated with built-in image_gen, not API/CLI; original files retained and local
+WebP copies integrated into home, ToDo, goals and Agent pages.
+See [saved paths, official references and complete prompts](2026-10-13-nus-campus.md).
+These are artistic interpretations, not an exact map or official NUS illustrations.
+
 ## Singapore — first real-city collection
 
 Six new images extend Pixel Atlas with one city across different page scenes:

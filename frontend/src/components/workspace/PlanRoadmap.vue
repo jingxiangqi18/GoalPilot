@@ -117,7 +117,7 @@ function focusStageHeading() {
     </div>
 
     <div v-if="taskFeedback" class="execution-notice" :class="taskFeedback.kind" :role="taskFeedback.kind === 'error' ? 'alert' : 'status'">
-      <span aria-hidden="true">{{ taskFeedback.kind === 'success' ? '✓' : taskFeedback.kind === 'error' ? '!' : '↻' }}</span>
+      <span aria-hidden="true">{{ taskFeedback.kind === 'error' ? '!' : '↻' }}</span>
       <p>{{ taskFeedback.message }}</p>
       <div v-if="taskFeedback.kind === 'error'"><button type="button" :disabled="taskBusy || !!activeRequest" @click="$emit('refresh-tasks')">{{ taskBusy ? '正在读取…' : '重新读取状态' }}</button><button type="button" :disabled="taskBusy" @click="$emit('open-library')">返回目标库</button></div>
     </div>
@@ -203,7 +203,6 @@ function focusStageHeading() {
 .plan-module .stage-directory li::after, .plan-module .directory-note { display: none; }
 .plan-module .stage-directory button { padding: 13px; }
 .plan-module .directory-progress { display: none; }
-.plan-module .execution-notice.success { padding: 5px 9px; background: transparent; font-size: 11px; }
 @container plan (max-width: 400px) { .plan-view-switch { flex-wrap: wrap; }.plan-view-switch > span { width: 100%; margin: 6px 0 0; }.stage-picker { gap: 7px; } }
 .plan-module { container: plan / inline-size; scroll-margin-top: 24px; display: grid; gap: 17px; font-family: var(--text-cn); }
 .plan-assistant-button { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 15px; padding: 8px 12px; color: var(--ink-700); background: linear-gradient(110deg, var(--canvas-soft), var(--canvas-soft)); border: 0; border-radius: var(--radius-sm); font-size: 12px; }.plan-assistant-button > span { font-size: 17px; }.plan-assistant-button small { padding-left: 5px; color: var(--ink-500); font-size: 10px; }.plan-assistant-button:hover:not(:disabled) { transform: translateX(3px); box-shadow: 0 3px 10px color-mix(in srgb, var(--shadow-color) 8%, transparent); }.plan-assistant-button:disabled { opacity: .5; }

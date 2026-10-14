@@ -1,13 +1,17 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import TaskCreateForm from './TaskCreateForm.vue'
 import TaskDetails from './TaskDetails.vue'
+import TaskDeleteConfirm from './TaskDeleteConfirm.vue'
 import SavedPlanView from './SavedPlanView.vue'
 import DateStamp from './DateStamp.vue'
 import WorldArt from './WorldArt.vue'
 
-const props = defineProps({ state: { type: Object, required: true }, editFor: { type: Function, required: true }, goals: { type: Array, default: () => [] }, goal: Object, standalone: Boolean, active: { type: Boolean, default: true }, goalsLoading: Boolean, goalsError: String })
-const emit = defineEmits(['load', 'submit', 'save-edit', 'reset-edit', 'library', 'inbox', 'workspace', 'open-goal', 'updated', 'ask-assistant', 'retry-goals'])
+const props = defineProps({ state: { type: Object, required: true }, editFor: { type: Function, required: true }, removeTask: { type: Function, required: true }, goals: { type: Array, default: () => [] }, goal: Object, standalone: Boolean, active: { type: Boolean, default: true }, goalsLoading: Boolean, goalsError: String })
+const emit = defineEmits(['load', 'submit', 'save-edit', 'reset-edit', 'set-status', 'library', 'inbox', 'workspace', 'open-goal', 'updated', 'ask-assistant', 'retry-goals'])
+const deletion = ref(null), deletionEdit = ref(null)
+const completionFocus = shallowRef(null)
+let deleteTrigger
 const mode = ref('inbox'), search = ref(''), expanded = ref(null), selectedPlanGoal = ref(null)
 const statusFilter = ref('ALL'), compact = ref(false)
 const filters = [{ value: 'ALL', label: '全部' }, { value: 'TODO', label: '待开始' }, { value: 'IN_PROGRESS', label: '进行中' }, { value: 'DONE', label: '已完成' }, { value: 'SKIPPED', label: '已跳过' }]
@@ -24,7 +28,22 @@ function goalLabel(id) { return props.goal?.id === id ? props.goal.goalText : pr
 async function startTask() { mode.value = 'inbox'; props.state.open = true; if (props.standalone) props.state.detailsOpen = true; await nextTick(); createForm.value?.focusTitle() }
 async function focusDesk(scroll = true) { await nextTick(); heading.value?.focus({ preventScroll: true }); if (scroll) heading.value?.scrollIntoView({ block: 'nearest', behavior: 'instant' }) }
 function selectTask(task) { expanded.value = expanded.value === task.id ? null : task.id; if (props.standalone) props.state.open = false }
-async function closeDetails() { const id = expanded.value; expanded.value = null; await nextTick(); taskList.value?.querySelector(`[data-task-id="${id}"]`)?.focus({ preventScroll: true }) }
+function toggleComplete(task, event) {
+  const edit = props.editFor(task)
+  if (edit.pending || edit.blocked || list.value.loading) return
+  completionFocus.value = { task, element: event.currentTarget, index: shownTasks.value.findIndex(item => item.id === task.id) }
+  emit('set-status', task, task.status === 'DONE' ? 'TODO' : 'DONE')
+}
+async function closeDetails() { const id = expanded.value; expanded.value = null; await nextTick(); (taskList.value?.querySelector(`[data-task-id="${id}"]`) || heading.value)?.focus({ preventScroll: true }) }
+function requestDelete(task) { deleteTrigger = document.activeElement; deletionEdit.value = props.editFor(task); deletion.value = task }
+async function cancelDelete() { deletion.value = null; await nextTick(); if (deleteTrigger?.isConnected) deleteTrigger.focus({ preventScroll: true }) }
+async function confirmDelete() {
+  const task = deletion.value
+  if (!task || props.editFor(task).pending || props.editFor(task).blocked) return
+  const removed = await props.removeTask(task)
+  await cancelDelete()
+  if (removed) await focusDesk(false)
+}
 function askFromPlan(context) { emit('ask-assistant', { goalId: selectedPlanGoal.value.id, context }) }
 function changePage(page) { clearFilters(); expanded.value = null; emit('load', page) }
 watch([() => props.active, mode, () => list.value.stale], () => {
@@ -37,6 +56,26 @@ watch(() => list.value.page, async () => {
   clearFilters(); expanded.value = null
   await nextTick()
   taskList.value?.scrollTo({ top: 0, behavior: 'instant' })
+})
+watch(shownTasks, async (items, previous) => {
+  const focused = document.activeElement?.closest('.inbox-task')?.dataset.recordId
+  if (!focused || items.some(task => String(task.id) === focused)) return
+  const index = previous.findIndex(task => String(task.id) === focused)
+  await nextTick()
+  const next = items[Math.min(index, items.length - 1)]
+  ;(next ? taskList.value?.querySelector(`[data-task-id="${next.id}"]`) : heading.value)?.focus({ preventScroll: true })
+})
+watch(() => completionFocus.value && props.editFor(completionFocus.value.task).pending, async (pending, wasPending) => {
+  if (pending || !wasPending) return
+  const previous = completionFocus.value
+  completionFocus.value = null
+  await nextTick()
+  // A disabled button may drop native focus while the PATCH is in flight.
+  // Restore it only if the user has not deliberately moved somewhere else.
+  if (document.activeElement !== document.body && document.activeElement !== previous.element) return
+  const same = taskList.value?.querySelector(`[data-record-id="${previous.task.id}"] .task-complete-toggle:not(:disabled)`)
+  const next = shownTasks.value[Math.min(previous.index, shownTasks.value.length - 1)]
+  ;(same || (next && taskList.value?.querySelector(`[data-task-id="${next.id}"]`)) || heading.value)?.focus({ preventScroll: true })
 })
 defineExpose({ focusDesk, startTask })
 </script>
@@ -56,7 +95,7 @@ defineExpose({ focusDesk, startTask })
       <p v-if="!state.open && (state.error || state.draft.title)" class="draft-reminder"><span>{{ state.error ? '有一条任务需要核对保存结果' : '有一条未保存的任务草稿' }}</span><button type="button" @click="startTask">继续填写 ↗</button></p>
       <div class="inbox-layout" :class="{ 'has-inspector': standalone && (state.open || selectedTask) }">
       <div v-show="state.open" class="task-editor"><TaskCreateForm ref="createForm" :state="state" :goals="goals" :goal="goal" :active="active && mode === 'inbox' && state.open" @submit="emit('submit')" @close="state.open = false" /></div>
-      <TaskDetails v-if="standalone && selectedTask && !state.open" :task="selectedTask" :edit-state="editFor(selectedTask)" :active="active && mode === 'inbox'" :refreshing="list.loading" :goal-title="goalLabel(selectedTask.goalId)" @save="emit('save-edit', editFor(selectedTask))" @reset="emit('reset-edit', editFor(selectedTask))" @verify="emit('load', list.page)" @close="closeDetails" @open-goal="emit('open-goal', $event)" />
+      <TaskDetails v-if="standalone && selectedTask && !state.open" :task="selectedTask" :edit-state="editFor(selectedTask)" :active="active && mode === 'inbox'" :refreshing="list.loading" :goal-title="goalLabel(selectedTask.goalId)" @save="emit('save-edit', editFor(selectedTask))" @reset="emit('reset-edit', editFor(selectedTask))" @verify="emit('load', list.page)" @close="closeDetails" @open-goal="emit('open-goal', $event)" @delete="requestDelete(selectedTask)" />
       <div class="task-results">
       <button v-if="goal" class="scope-link" type="button" @click="emit('inbox')">查看全部任务 →</button>
       <div class="list-toolbar"><span>{{ goal ? `全部任务 · 第 ${list.page} 页的关联项` : '最近创建在前 · 每页 20 项' }}</span><button type="button" :disabled="list.loading" @click="emit('load', list.page)">刷新任务列表</button></div>
@@ -69,9 +108,13 @@ defineExpose({ focusDesk, startTask })
       <p v-else-if="list.loaded && list.total && !scopedTasks.length && !list.loading" class="search-empty">{{ goal ? '这一页没有关联当前目标的任务，可以翻阅其他页或查看全部任务。' : '这一页暂时没有任务，请刷新列表。' }}</p>
       <p v-else-if="scopedTasks.length && !shownTasks.length" class="search-empty">本页没有匹配的任务。<button type="button" @click="clearFilters">{{ search ? '清除搜索' : '重置筛选' }}</button></p>
       <ul v-if="shownTasks.length" ref="taskList" class="receipt-list" aria-label="已保存的任务">
-        <li v-for="task in shownTasks" :key="task.id" class="inbox-task" :class="{ 'is-done': task.status === 'DONE', 'is-selected': standalone && expanded === task.id && !state.open }">
-          <button type="button" class="task-receipt-title" :data-task-id="task.id" :aria-expanded="expanded === task.id && (!standalone || !state.open)" :aria-controls="standalone && expanded === task.id && !state.open ? 'selected-task-details' : undefined" @click="selectTask(task)"><span class="receipt-mark" aria-hidden="true">{{ task.status === 'DONE' ? '✓' : task.status === 'IN_PROGRESS' ? '◷' : task.status === 'SKIPPED' ? '−' : '□' }}</span><span><strong>{{ task.title }}</strong><small>{{ task.goalId ? '关联目标' : '独立任务' }}<i>·</i><b :class="{ important: task.priority === 'HIGH' }">{{ priorityLabels[task.priority] }}</b></small></span><span v-if="standalone" class="task-row-deadline"><DateStamp v-if="task.deadline" :value="task.deadline" label="期待完成" compact /><span v-else>未设置时间</span></span><span class="receipt-status">{{ statusLabels[task.status] }}<i aria-hidden="true">{{ expanded === task.id && (!standalone || !state.open) ? '−' : '＋' }}</i></span></button>
-          <TaskDetails v-if="!standalone && expanded === task.id" :task="task" :edit-state="editFor(task)" :active="active && mode === 'inbox'" :refreshing="list.loading" :goal-title="goalLabel(task.goalId)" @save="emit('save-edit', editFor(task))" @reset="emit('reset-edit', editFor(task))" @verify="emit('load', list.page)" @close="closeDetails" @open-goal="emit('open-goal', $event)" />
+        <li v-for="task in shownTasks" :key="task.id" class="inbox-task" :data-record-id="task.id" :class="{ 'is-done': task.status === 'DONE', 'is-selected': standalone && expanded === task.id && !state.open }">
+          <div class="task-receipt-row" :aria-busy="editFor(task).pending">
+            <button type="button" role="checkbox" class="task-complete-toggle" :aria-checked="task.status === 'DONE'" :aria-label="task.status === 'DONE' ? `重新打开「${task.title}」` : `完成「${task.title}」`" :disabled="editFor(task).pending || editFor(task).blocked || list.loading" @click="toggleComplete(task, $event)"><span aria-hidden="true">{{ editFor(task).pending ? '·' : task.status === 'DONE' ? '✓' : task.status === 'IN_PROGRESS' ? '◷' : task.status === 'SKIPPED' ? '−' : '' }}</span></button>
+            <button type="button" class="task-receipt-title" :data-task-id="task.id" :aria-expanded="expanded === task.id && (!standalone || !state.open)" :aria-controls="standalone && expanded === task.id && !state.open ? 'selected-task-details' : undefined" @click="selectTask(task)"><span class="task-row-copy"><strong>{{ task.title }}</strong><small>{{ task.goalId ? '关联目标' : '独立任务' }}<i>·</i><b :class="{ important: task.priority === 'HIGH' }">{{ priorityLabels[task.priority] }}</b></small></span><span v-if="standalone" class="task-row-deadline" :class="{ 'is-unscheduled': !task.deadline }"><DateStamp v-if="task.deadline" :value="task.deadline" label="截止时间" agenda /><span v-else>未安排时间</span></span><span class="receipt-status">{{ statusLabels[task.status] }}<i aria-hidden="true">{{ expanded === task.id && (!standalone || !state.open) ? '−' : '＋' }}</i></span></button>
+          </div>
+          <div v-if="editFor(task).error && expanded !== task.id" class="row-error" role="alert"><span>{{ editFor(task).error }}</span><button type="button" @click="selectTask(task)">查看任务</button><button v-if="editFor(task).blocked" type="button" :disabled="list.loading" @click="emit('load', list.page)">刷新核对</button></div>
+          <TaskDetails v-if="!standalone && expanded === task.id" :task="task" :edit-state="editFor(task)" :active="active && mode === 'inbox'" :refreshing="list.loading" :goal-title="goalLabel(task.goalId)" @save="emit('save-edit', editFor(task))" @reset="emit('reset-edit', editFor(task))" @verify="emit('load', list.page)" @close="closeDetails" @open-goal="emit('open-goal', $event)" @delete="requestDelete(task)" />
         </li>
       </ul>
       </div>
@@ -88,6 +131,7 @@ defineExpose({ focusDesk, startTask })
       </template>
       <template v-else><button class="scope-link" type="button" @click="selectedPlanGoal = null">← 切换目标</button><div class="desk-plan-scroll"><SavedPlanView :key="selectedPlanGoal.id" :goal="selectedPlanGoal" embedded @back="emit('open-goal', selectedPlanGoal.id)" @updated="emit('updated', $event)" @ask-assistant="askFromPlan" /></div></template>
     </div>
+    <TaskDeleteConfirm v-if="deletion" :task="deletion" :pending="deletionEdit.pending" @cancel="cancelDelete" @confirm="confirmDelete" />
   </section>
 </template>
 
@@ -110,7 +154,10 @@ button { cursor: pointer; font-family: inherit; color: var(--accent-deep); borde
 .list-error { margin: 12px 0; padding: 12px; color: #80512e; background: #f6efdc; border-left: 3px solid #b38954; font-size: 12px; line-height: 1.8; }.list-error p { margin: 0 0 6px; }.list-error small { display: block; }.list-error button { margin-top: 8px; padding: 5px 8px; font-size: 11px; }
 .task-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 0 0; font-size: 11px; }.task-pagination > span { text-align: center; color: var(--accent-deep); line-height: 1.8; }.task-pagination small { display: block; font-size: 10px; color: var(--ink-500); }.task-pagination button { padding: 7px; font-size: 11px; white-space: nowrap; }
 .is-done .receipt-mark { color: #4c7553; }.is-done .task-receipt-title strong { color: var(--ink-500); text-decoration: line-through; text-decoration-thickness: 1px; }
+.task-receipt-row { display: flex; align-items: center; gap: 8px; padding-left: 5px; }.task-receipt-row .task-receipt-title { flex: 1; min-width: 0; }.task-receipt-title > .task-row-copy { flex: 1; min-width: 0; }.task-complete-toggle { flex: 0 0 32px; width: 32px; height: 32px; display: grid; place-items: center; border: 0; background: transparent; }.task-complete-toggle > span { display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--accent); border-radius: 4px; font-size: 15px; transition: background .15s; }.task-complete-toggle[aria-checked="true"] > span { color: var(--paper); background: var(--accent); }.task-complete-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }.row-error { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; color: var(--danger); background: var(--danger-soft); font-size: 12px; line-height: 1.8; }.row-error button { padding: 5px 8px; }.row-notice { margin: 0; padding: 0 8px 9px 44px; font-size: 11px; color: var(--accent); }
 .task-editor, .task-results, .inbox-layout { min-width: 0; }.task-editor { margin-bottom: 18px; }
+.task-receipt-row .task-receipt-title > .task-row-deadline { display: flex; flex: 0 0 170px; max-width: none; margin-inline: 12px; }.task-receipt-row .task-receipt-title > .receipt-status { flex: 0 0 auto; }
+.task-results { container-type: inline-size; }
 .task-page { padding: clamp(18px, 2.5vw, 36px); min-height: calc(100dvh - 145px); animation: task-page-enter .24s ease-out both; }.task-page .desk-heading { margin-bottom: 28px; padding-bottom: 22px; border-bottom: 1px dashed var(--line-strong); }.task-page .desk-heading h1 { margin: 10px 0; font-size: clamp(24px, 2.3vw, 34px); font-weight: 600; line-height: 1.4; outline: none; }.task-page .back-to-workspace { padding: 9px 13px; font-size: 12px; white-space: nowrap; }
 .task-page .desk-tabs { max-width: 440px; margin-bottom: 24px; }.task-page .inbox-heading { margin: 0 0 18px; font-size: 15px; }.task-page .inbox-heading button { padding: 10px 16px; color: var(--paper); background: var(--accent-deep); border-color: var(--accent-deep); font-size: 13px; box-shadow: 2px 2px 0 #b7c7b3; }
 .task-page .inbox-layout.has-inspector { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, .52fr); gap: 24px; align-items: start; }.task-page .task-results { grid-column: 1; grid-row: 1; }.task-page .task-editor, .task-page :deep(.task-inspector) { grid-column: 2; grid-row: 1; }.task-page .task-editor { margin: 0; }
@@ -121,4 +168,17 @@ button { cursor: pointer; font-family: inherit; color: var(--accent-deep); borde
 @media(max-width: 620px) { .task-page .desk-heading { flex-wrap: wrap; gap: 10px; }.task-page .desk-heading > div { flex-basis: calc(100% - 70px); }.task-page .back-to-workspace { order: 3; }.task-page .receipt-list { max-height: 58dvh; }.task-page .inbox-heading { font-size: 13px; }.task-page .inbox-heading button { padding: 8px 10px; font-size: 11px; }.task-page .task-receipt-title { padding-inline: 4px; gap: 9px; } }
 @media(prefers-reduced-motion: reduce) { .task-page { animation: none; } }
 @media(max-width: 620px) { .task-desk { padding: 15px; }.desk-heading h2 { font-size: 16px; }.desk-art { width: 58px; height: 58px; }.desk-plan-scroll { max-height: 70dvh; } }
+@container (max-width: 640px) {
+  .task-page .task-receipt-title { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .task-row-copy { grid-area: 1 / 1; }.receipt-status { grid-area: 1 / 2; }
+  .task-receipt-row .task-receipt-title > .task-row-deadline { grid-column: 1 / -1; margin: 0; }
+  .task-receipt-row .task-receipt-title > .is-unscheduled { display: none; }
+  .task-row-deadline :deep(.agenda) { gap: 5px; align-items: baseline; }
+  .task-row-deadline :deep(.agenda-day) { order: 2; min-width: 0; font-size: 14px; letter-spacing: 0; }
+  .task-row-deadline :deep(.agenda-day)::after { content: '日'; margin-left: 2px; font: 10px var(--text-cn); color: var(--ink-500); }
+  .task-row-deadline :deep(.agenda-copy) { display: contents; }
+  .task-row-deadline :deep(.agenda-month) { order: 1; letter-spacing: 0; }
+  .task-row-deadline :deep(.agenda-schedule) { order: 3; margin-left: 5px; font-size: 10px; gap: 8px; }
+  .task-row-deadline :deep(.agenda-time) { font-size: 12px; }
+}
 </style>

@@ -4,12 +4,21 @@ import { taskEditValues, taskUpdateChanges, isTaskUpdateReceipt } from '../src/u
 
 const task = { id: 25, title: '任务', description: ' 原有说明 ', completionCriteria: '可演示', priority: 'MEDIUM', status: 'DONE', goalId: 1, planTaskId: null, deadline: '2028-02-29T00:05:37.123', createdAt: '2026-10-11T10:00:00', updatedAt: '2026-10-11T10:01:00' }
 const changes = values => taskUpdateChanges(task, { ...taskEditValues(task), ...values })
-test('Task updates contain only changed writable fields, never state or association', () => {
+test('Task updates contain only changed writable fields, including state but never association', () => {
   assert.deepEqual(changes({}), { patch: {}, errors: {} })
-  assert.deepEqual(changes({ title: '  新任务  ', goalId: 8, status: 'TODO', id: 8, planTaskId: 9 }).patch, { title: '新任务' })
+  assert.deepEqual(changes({ title: '  新任务  ', goalId: 8, status: 'TODO', id: 8, planTaskId: 9, completedAt: 'fake' }).patch, { title: '新任务', status: 'TODO' })
   assert.deepEqual(changes({ title: '  任务  ', priority: 'MEDIUM' }).patch, {})
   assert.deepEqual(changes({ description: '', completionCriteria: '  ' }).patch, { description: '', completionCriteria: '' })
   assert.deepEqual(changes({ description: ' 修改后说明 ' }).patch, { description: '修改后说明' })
+})
+test('Status changes use the Task enum without writing completion timestamps', () => {
+  for (const status of ['TODO', 'IN_PROGRESS', 'SKIPPED']) assert.deepEqual(changes({ status }).patch, { status })
+  for (const status of ['', null, undefined, 'COMPLETED']) assert.ok(changes({ status }).errors.status)
+  assert.deepEqual(changes({ status: 'DONE', completedAt: null }).patch, {})
+  assert.ok(isTaskUpdateReceipt({ ...task, status: 'TODO' }, 25, { status: 'TODO' }))
+  assert.equal(isTaskUpdateReceipt(task, 25, { status: 'TODO' }), false)
+  assert.equal(isTaskUpdateReceipt(task, 25, { status: 'DONE' }), false, 'Completion must come with a server timestamp')
+  assert.ok(isTaskUpdateReceipt({ ...task, completedAt: '2026-10-13T09:00:00' }, 25, { status: 'DONE' }))
 })
 test('Task PATCH enforces lengths, nonblank title and priority enum', () => {
   for (const title of ['', ' \n ', '字'.repeat(301)]) assert.ok(changes({ title }).errors.title)

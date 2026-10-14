@@ -2,10 +2,15 @@ import { readLocalMinute } from './calendar.js'
 import { isTaskRecord } from './taskPage.js'
 import { taskPriorities } from './taskDraft.js'
 
+export const taskStatuses = [
+  { value: 'TODO', label: '待开始' }, { value: 'IN_PROGRESS', label: '进行中' },
+  { value: 'DONE', label: '已完成' }, { value: 'SKIPPED', label: '已跳过' },
+]
+
 export function taskEditValues(task) {
   return {
     title: task.title || '', description: task.description || '',
-    completionCriteria: task.completionCriteria || '', priority: task.priority,
+    completionCriteria: task.completionCriteria || '', priority: task.priority, status: task.status,
     // LocalDateTime is not UTC; leave untouched seconds/fractions on the server.
     deadline: task.deadline ? task.deadline.slice(0, 16) : '',
   }
@@ -23,6 +28,10 @@ export function taskUpdateChanges(task, values) {
     if (!taskPriorities.some(option => option.value === values.priority)) errors.priority = '请选择低、中或高优先级。'
     else patch.priority = values.priority
   }
+  if (values.status !== original.status) {
+    if (!taskStatuses.some(option => option.value === values.status)) errors.status = '请选择有效的任务状态。'
+    else patch.status = values.status
+  }
   if (values.deadline !== original.deadline) {
     if (values.deadline === '') patch.clearDeadline = true
     else if (!readLocalMinute(values.deadline)) errors.deadline = '请选择有效的日期和时间。'
@@ -33,6 +42,7 @@ export function taskUpdateChanges(task, values) {
 
 export function isTaskUpdateReceipt(task, id, patch) {
   if (!isTaskRecord(task) || task.id !== id || typeof task.updatedAt !== 'string' || !task.updatedAt) return false
+  if (patch.status === 'DONE' && !readLocalMinute(task.completedAt?.slice(0, 16))) return false
   return Object.entries(patch).every(([key, value]) => {
     if (key === 'clearDeadline') return value === true && task.deadline === null
     if (key === 'deadline') return typeof task.deadline === 'string' && task.deadline.slice(0, 19) === value

@@ -96,3 +96,7 @@ export function postJson(path, body) {
 export function patchJson(path, body) {
   return requestJson(path, { method: 'PATCH', body: JSON.stringify(body) })
 }
+
+export function deleteJson(path) {
+  return requestJson(path, { method: 'DELETE' })
+}

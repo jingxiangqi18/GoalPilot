@@ -79,7 +79,7 @@ try {
   assert.equal(reads()[0].authorization, 'Bearer task-query-test')
   assert.equal(await desk().locator('.inbox-task').count(), 20)
   assert.match(await desk().locator('.inbox-heading').innerText(), /共 45 项/)
-  assert.equal(await desk().getByRole('checkbox').count(), 0, 'Historical Tasks remain read-only')
+  assert.equal(await desk().locator('.task-complete-toggle').count(), await desk().locator('.inbox-task').count(), 'Historical Tasks support status updates through the Task API')
   assert.match(await row('历史任务 43').innerText(), /已完成/)
   await row('历史任务 45').getByRole('button').first().click()
   assert.match(await page.getByRole('complementary', { name: '任务详情' }).innerText(), /2028年/)

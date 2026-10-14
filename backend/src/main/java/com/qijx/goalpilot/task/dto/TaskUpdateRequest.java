@@ -3,6 +3,7 @@ package com.qijx.goalpilot.task.dto;
 import java.time.LocalDateTime;
 
 import com.qijx.goalpilot.task.entity.TaskPriority;
+import com.qijx.goalpilot.task.entity.TaskStatus;
 
 import jakarta.validation.constraints.Size;
 
@@ -17,6 +18,8 @@ public record TaskUpdateRequest(
     String completionCriteria,
 
     TaskPriority priority,
+
+    TaskStatus status,
 
     LocalDateTime deadline,
 

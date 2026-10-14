@@ -43,7 +43,7 @@ const checks = page.getByRole('checkbox')
 const patches = () => requests.filter(item => item.method === 'PATCH')
 async function capture(name) { await page.evaluate(() => { window.scrollTo({ top: 0, behavior: 'instant' }); document.querySelector('.panel-scroll')?.scrollTo({ top: 0, behavior: 'instant' }) }); await settle(); await page.screenshot({ path: join(artifacts, name + '.png'), fullPage: true }) }
 async function filter(name) { await filters.getByRole('button', { name: new RegExp(name) }).click() }
-async function progress(done) { assert.equal(await page.getByRole('progressbar', { name: '任务完成进度' }).getAttribute('aria-valuenow'), String(done)) }
+async function progress(done) { await page.waitForFunction(value => document.querySelector('[role="progressbar"][aria-label="任务完成进度"]')?.getAttribute('aria-valuenow') === String(value), done) }
 try {
   await page.goto(process.env.APP_URL || 'http://127.0.0.1:5184', { waitUntil: 'domcontentloaded' })
   await page.locator('.recent-goal').first().waitFor()
@@ -76,16 +76,16 @@ try {
   await checks.nth(0).dispatchEvent('click'); await progress(4)
   assert.equal(patches().length, 1)
   release(); holdPatch = null
-  await page.locator('.execution-notice.success').waitFor()
   await progress(5)
+  assert.equal(await page.locator('.execution-notice.success').count(), 0)
   assert.equal(await checks.nth(0).getAttribute('aria-checked'), 'true')
   assert.equal(patches()[0].body, JSON.stringify({ status: 'DONE' }))
-  await checks.nth(0).click(); await page.locator('.execution-notice.success').filter({ hasText: '待开始' }).waitFor(); await progress(4)
+  await checks.nth(0).click(); await progress(4)
   assert.equal(patches()[1].body, JSON.stringify({ status: 'TODO' }))
   // Filtering doesn't change backend order or the task ID used for updates.
   await filter('待办'); assert.equal(await checks.count(), 2)
   await checks.nth(1).focus(); await page.keyboard.press('Space')
-  await page.locator('.execution-notice.success').filter({ hasText: '基础模型' }).waitFor()
+  await progress(5)
   assert.equal(patches().at(-1).path, '/api/tasks/2/status')
   await page.waitForFunction(() => document.querySelectorAll('.task-check[role="checkbox"]').length === 1)
   assert.equal(await filters.getByRole('button', { name: /待办/ }).evaluate(el => el === document.activeElement), true)
@@ -102,7 +102,7 @@ try {
   await progress(5)
   patchStatus = 200
   await page.getByRole('button', { name: '重新读取状态' }).click()
-  await page.locator('.execution-notice.info').waitFor()
+  await page.locator('.execution-notice.error').waitFor({ state: 'detached' })
   assert.equal(await checks.first().isDisabled(), false)
   await filter('待办'); await checks.first().click()
   await page.locator('.stage-card .task-empty').waitFor()

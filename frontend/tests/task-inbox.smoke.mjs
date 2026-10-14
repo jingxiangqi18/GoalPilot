@@ -75,7 +75,7 @@ try {
   await desk().getByRole('button', { name: '回到工作台', exact: true }).click()
   assert.equal(await page.getByRole('textbox', { name: '我的目标', exact: true }).inputValue(), '这是一段尚未提交的目标描述')
   await inbox()
-  assert.equal(await desk().getByRole('checkbox').count(), 0, 'A new Task must never expose PlanTask completion controls')
+  assert.equal(await desk().locator('.task-complete-toggle').count(), await desk().locator('.inbox-task').count(), 'Ordinary Tasks have their own completion controls, separate from PlanTask')
   await start('预约一段公园步行')
   assert.ok(await form().getByRole('combobox', { name: '任务关联目标' }).isVisible(), 'The manual page opens the full form')
   await form().getByRole('combobox', { name: '任务关联目标' }).click()

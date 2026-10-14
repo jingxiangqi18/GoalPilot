@@ -22,7 +22,7 @@ const { appearance } = useWorldAppearance()
 
 const props = defineProps({ user: { type: Object, required: true } })
 defineEmits(['logout'])
-const { stateFor: taskStateFor, submit: submitTask, load: loadTasks, editFor: taskEditFor, saveEdit: saveTaskEdit, resetEdit: resetTaskEdit } = useTaskInbox()
+const { stateFor: taskStateFor, submit: submitTask, load: loadTasks, editFor: taskEditFor, saveEdit: saveTaskEdit, resetEdit: resetTaskEdit, setStatus: setInboxTaskStatus, remove: removeInboxTask } = useTaskInbox()
 const taskDesk = ref(null)
 
 async function askFromTaskDesk({ goalId, context }) {
@@ -568,7 +568,7 @@ onBeforeUnmount(() => {
           <GoalComposer v-model="goalText" v-model:details="goalDetails" :loading="activeRequest === 'analysis'" :error-title="errorTitle" :error-message="errorMessage" :user-name="user.username" :current-goal-id="activeGoalId" :analyzed="!!result && goalSubmissionText === activeSavedText" @submit="submitGoal" @resume="openGoalDetails(activeGoalId)" @dismiss-error="errorMessage = ''" />
           <RecentGoals :items="recentItems" :loading="recentLoading" :error="recentError" :busy="!!activeRequest" @open="openGoalDetails" @plan="openSavedPlan" @library="navigate('library')" @retry="loadRecentGoals" />
         </div>
-        <TaskDesk v-else-if="activeView === 'tasks'" ref="taskDesk" standalone :state="taskStateFor()" :edit-for="taskEditFor" :goals="recentItems" :goals-loading="recentLoading" :goals-error="recentError" @save-edit="saveTaskEdit" @reset-edit="resetTaskEdit" @workspace="navigate('create')" @load="loadTasks(taskStateFor(), $event)" @submit="submitTask(taskStateFor())" @library="navigate('library')" @open-goal="openGoalDetails" @updated="syncPlanSnapshot" @ask-assistant="askFromTaskDesk" @retry-goals="loadRecentGoals" />
+        <TaskDesk v-else-if="activeView === 'tasks'" ref="taskDesk" standalone :state="taskStateFor()" :edit-for="taskEditFor" :remove-task="removeInboxTask" :goals="recentItems" :goals-loading="recentLoading" :goals-error="recentError" @save-edit="saveTaskEdit" @reset-edit="resetTaskEdit" @set-status="setInboxTaskStatus" @workspace="navigate('create')" @load="loadTasks(taskStateFor(), $event)" @submit="submitTask(taskStateFor())" @library="navigate('library')" @open-goal="openGoalDetails" @updated="syncPlanSnapshot" @ask-assistant="askFromTaskDesk" @retry-goals="loadRecentGoals" />
         <template v-else-if="activeView === 'session'">
           <div v-if="detailLoading || !selectedGoal" class="session-loading">
             <span aria-hidden="true">✧</span><h1>{{ sessionError ? '暂时无法打开这个目标' : '正在打开目标会话' }}</h1>
@@ -576,7 +576,7 @@ onBeforeUnmount(() => {
             <div><button type="button" @click="navigate('library')">返回目标库</button><button v-if="sessionError" type="button" @click="openGoalDetails(sessionId)">重新读取</button></div>
           </div>
           <GoalSessionView v-else :key="selectedGoal.id" ref="sessionView" :goal="selectedGoal" :session="sessionFor(selectedGoal.id)" :initial-panel="sessionPanel" :busy="!!activeRequest" :has-draft="availableDraftGoalId === selectedGoal.id" @back="reviewGoalState" @analyze="continueGoal(selectedGoal)" @generate="generateGoalPlan(selectedGoal)" @updated="syncPlanSnapshot" @goal-updated="syncGoalDetails" @edit-busy="setGoalEditBusy" @new-task="taskStateFor(selectedGoal.id).open = true">
-            <template #tasks="{ active }"><TaskDesk :state="taskStateFor(selectedGoal.id)" :edit-for="taskEditFor" :goal="selectedGoal" :goals="recentItems" :active="active" @save-edit="saveTaskEdit" @reset-edit="resetTaskEdit" @load="loadTasks(taskStateFor(selectedGoal.id), $event)" @submit="submitTask(taskStateFor(selectedGoal.id))" @inbox="navigate('tasks')" @library="navigate('library')" @open-goal="openGoalDetails" /></template>
+            <template #tasks="{ active }"><TaskDesk :state="taskStateFor(selectedGoal.id)" :edit-for="taskEditFor" :remove-task="removeInboxTask" :goal="selectedGoal" :goals="recentItems" :active="active" @save-edit="saveTaskEdit" @reset-edit="resetTaskEdit" @set-status="setInboxTaskStatus" @load="loadTasks(taskStateFor(selectedGoal.id), $event)" @submit="submitTask(taskStateFor(selectedGoal.id))" @inbox="navigate('tasks')" @library="navigate('library')" @open-goal="openGoalDetails" /></template>
             <template v-if="planningMode" #conversation>
               <PlanningConversation v-model:answers="clarificationAnswers" :goal="selectedGoal" :result="result" :plan="plan" :active-request="activeRequest" :error-message="errorMessage" :error-title="errorTitle" @analyze="submitGoal" @clarify="submitClarification" @generate-plan="createPlan" @open-plan="sessionView?.openPanel('plan')" @open-info="sessionView?.openPanel('info')" />
             </template>

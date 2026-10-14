@@ -8,9 +8,21 @@ const open = ref(false), root = ref(null), trigger = ref(null)
 const panelId = useId()
 async function toggle() {
   open.value = !open.value
-  if (open.value) { await nextTick(); root.value?.querySelector('[aria-pressed="true"]')?.focus() }
+  if (open.value) {
+    await nextTick()
+    const selected = root.value?.querySelector('[aria-pressed="true"]')
+    // Native focus scrolling can shift the entire page when this fixed panel
+    // is inside the filtered top bar. Scroll only the menu to reveal its selection.
+    selected?.focus({ preventScroll: true })
+    const panel = selected?.closest('.appearance-panel')
+    if (!panel) return
+    const item = selected.getBoundingClientRect(), bounds = panel.getBoundingClientRect()
+    const top = bounds.top + panel.clientTop + 8, bottom = bounds.top + panel.clientTop + panel.clientHeight - 8
+    if (item.bottom > bottom) panel.scrollTop += item.bottom - bottom
+    else if (item.top < top) panel.scrollTop += item.top - top
+  }
 }
-function close() { open.value = false; trigger.value?.focus() }
+function close() { open.value = false; trigger.value?.focus({ preventScroll: true }) }
 function outside(event) { if (!root.value?.contains(event.target)) open.value = false }
 onMounted(() => document.addEventListener('pointerdown', outside))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', outside))
@@ -37,7 +49,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', outside))
 .appearance-panel > header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }.appearance-panel > header strong { font-size: 13px; font-weight: 600; }.appearance-panel > header button { width: 28px; height: 28px; border: 0; border-radius: 3px; background: var(--canvas-soft); color: var(--ink); font-size: 20px; }
 .scene-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }.scene-options button { overflow: hidden; padding: 4px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink-700); background: var(--paper); text-align: left; }.scene-options button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent); }.scene-options .world-art { width: 100%; height: 64px; object-fit: cover; border-radius: 3px; }.scene-options span { display: flex; justify-content: space-between; gap: 3px; padding: 8px 4px 5px; font-size: 11px; }.scene-options i { font-style: normal; }
 .focus-toggle { display: flex; align-items: center; gap: 12px; padding-top: 16px; margin-top: 14px; border-top: 1px solid var(--line); font-size: 12px; cursor: pointer; }.focus-toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }.focus-toggle > i { display: block; margin-left: auto; width: 34px; height: 20px; padding: 3px; background: #ced8c8; border-radius: 4px; }.focus-toggle > i::after { content: ''; display: block; width: 14px; height: 14px; border-radius: 2px; background: var(--paper); transition: transform .18s; }.focus-toggle input:checked + i { background: var(--accent); }.focus-toggle input:checked + i::after { transform: translateX(14px); }.focus-toggle input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 3px; }
+.scene-options > button:last-child:nth-child(odd) { grid-column: 1 / -1; display: grid; grid-template-columns: 108px minmax(0, 1fr); align-items: center; gap: 10px; }
 .appearance-enter-active, .appearance-leave-active { transition: opacity .16s, transform .18s; }.appearance-enter-from, .appearance-leave-to { opacity: 0; transform: translateY(-5px); }
-@media(max-width: 620px) { .appearance-trigger { padding: 7px; }.appearance-trigger > span { display: none; }.appearance-panel { position: fixed; top: 64px; right: 12px; } }
+@media(max-width: 620px) { .appearance-trigger { padding: 7px; }.appearance-trigger > span { display: none; }.appearance-panel { position: fixed; top: 64px; left: 12px; right: 12px; width: auto; max-width: none; } }
 @media(prefers-reduced-motion: reduce) { *, *::after { transition: none !important; } }
 </style>

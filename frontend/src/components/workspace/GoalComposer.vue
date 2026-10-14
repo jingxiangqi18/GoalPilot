@@ -78,6 +78,7 @@ function submitShortcut(event) {
 
 <template>
   <section class="composer-view">
+    <div class="conversation-island">
     <header class="editorial-heading">
       <span class="kicker"><i aria-hidden="true"></i>你好，{{ userName }}</span>
       <h1>今天，想一起<span>推进什么？</span></h1>
@@ -93,6 +94,7 @@ function submitShortcut(event) {
       <div v-if="errorMessage" class="error-banner" role="alert"><div><strong>{{ errorTitle }}</strong><p>{{ errorMessage }}</p></div><button type="button" aria-label="关闭错误提示" @click="emit('dismiss-error')">×</button></div>
       <footer class="composer-actions"><button type="button" class="details-toggle" :aria-expanded="detailsOpen" aria-controls="goal-details" :disabled="loading" @click="detailsOpen = !detailsOpen"><span>{{ detailsOpen ? '−' : '＋' }}</span> 补充条件 <small>选填</small></button><div><span id="goal-length-note" :class="{ 'over-limit': count > 1000 }">{{ count }} / 1000</span><button class="analyze-button" type="submit" :disabled="!canSubmit">{{ loading ? '正在梳理…' : analyzed ? '继续对话' : '开始梳理' }} <span aria-hidden="true">↑</span></button></div></footer>
     </form>
+    </div>
     <section class="prompt-module" aria-label="目标灵感">
       <div class="prompt-heading"><span>从一个灵感开始</span><i aria-hidden="true"></i></div>
       <Transition name="example-confirm"><div v-if="pendingExample" class="example-confirm" role="group" aria-label="确认替换目标描述"><p>要用这个灵感替换当前描述吗？<small>{{ pendingExample }}。补充条件会保留。</small></p><button type="button" @click="pendingExample = null">保留原文</button><button type="button" @click="applyExample(pendingExample)">使用示例</button></div></Transition>

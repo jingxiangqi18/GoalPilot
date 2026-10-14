@@ -71,7 +71,7 @@ try {
   assert.ok(await save().isDisabled())
   assert.equal(await title().inputValue(), '保存的任务 25')
   assert.equal(await form().locator('select, input[type="datetime-local"], input[type="date"]').count(), 0)
-  assert.equal(await form().getByRole('combobox').count(), 1, 'Task ownership and status are not editable')
+  assert.equal(await form().getByRole('combobox').count(), 2, 'Priority and status are editable; ownership remains immutable')
   await title().fill('   '); assert.ok(await save().isDisabled()); await reset()
   await title().fill('只是未保存的草稿'); await page.getByRole('button', { name: '关闭任务详情' }).click(); await open(25)
   assert.equal(await title().inputValue(), '只是未保存的草稿')

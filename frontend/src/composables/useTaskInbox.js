@@ -1,8 +1,8 @@
 import { onBeforeUnmount, reactive } from 'vue'
-import { createTask, getTasks, updateTask } from '../api/task'
+import { createTask, deleteTask, getTasks, updateTask } from '../api/task'
 import { emptyTaskDraft, taskCreateChanges } from '../utils/taskDraft'
 import { TASK_PAGE_SIZE } from '../utils/taskPage'
-import { taskEditValues, taskUpdateChanges } from '../utils/taskUpdate'
+import { taskEditValues, taskStatuses, taskUpdateChanges } from '../utils/taskUpdate'
 
 export function useTaskInbox() {
   // Drafts and page positions are isolated by view; private data stays in memory.
@@ -47,7 +47,7 @@ export function useTaskInbox() {
   function editFor(task) {
     if (!edits[task.id]) edits[task.id] = {
       baseline: { ...task }, values: taskEditValues(task), pending: false,
-      blocked: false, error: '', notice: '',
+      blocked: false, error: '', notice: '', action: '',
     }
     return edits[task.id]
   }
@@ -86,14 +86,28 @@ export function useTaskInbox() {
     if (disposed || edit.pending || edit.blocked) return
     const { patch, errors } = taskUpdateChanges(edit.baseline, edit.values)
     if (Object.keys(errors).length || !Object.keys(patch).length) return
+    await applyPatch(edit, patch, 'save')
+  }
+  async function setStatus(task, status) {
+    const edit = editFor(task)
+    if (!taskStatuses.some(option => option.value === status) || status === edit.baseline.status) return
+    await applyPatch(edit, { status }, 'status')
+  }
+  async function applyPatch(edit, patch, action) {
+    if (disposed || edit.pending || edit.blocked) return
     const id = edit.baseline.id
-    edit.pending = true; edit.error = ''; edit.notice = ''
+    edit.pending = true; edit.action = action; edit.error = ''; edit.notice = ''
     try {
       const task = await updateTask(id, patch)
       if (disposed) return
       stopOldReads(task)
-      edit.baseline = { ...task }; edit.values = taskEditValues(task)
-      edit.notice = '任务修改已保存。'
+      const previous = taskEditValues(edit.baseline), latest = taskEditValues(task)
+      // Quick completion must not save or discard a separate, unsaved form draft.
+      for (const key of Object.keys(latest)) {
+        if (key in patch || (key === 'deadline' && patch.clearDeadline) || edit.values[key] === previous[key]) edit.values[key] = latest[key]
+      }
+      edit.baseline = { ...task }
+      edit.notice = action === 'status' || (Object.keys(patch).length === 1 && patch.status) ? '' : '任务修改已保存。'
     } catch (error) {
       if (disposed) return
       stopOldReads()
@@ -103,7 +117,35 @@ export function useTaskInbox() {
           ? '任务不存在或无法访问，已暂停保存。请刷新列表核对，输入已保留。'
           : '无法确认更新结果，已暂停保存。请刷新列表核对，不会自动重复提交。'
     } finally {
-      if (!disposed) edit.pending = false
+      if (!disposed) { edit.pending = false; edit.action = '' }
+    }
+  }
+  async function remove(task) {
+    const edit = editFor(task)
+    if (disposed || edit.pending || edit.blocked) return false
+    edit.pending = true; edit.action = 'delete'; edit.error = ''; edit.notice = ''
+    try {
+      await deleteTask(task.id)
+      if (disposed) return false
+      // Remove only after a successful response; invalidate reads started before DELETE.
+      for (const state of Object.values(states)) {
+        readVersions.set(state, (readVersions.get(state) || 0) + 1)
+        state.list.loading = false; state.list.error = ''
+        state.list.items = state.list.items.filter(item => item.id !== task.id)
+        state.list.stale = true
+        state.notice = `「${task.title}」已删除。`
+      }
+      delete edits[task.id]
+      // The visible desk reloads real totals and recovers an emptied last page.
+      return true
+    } catch (error) {
+      if (disposed) return false
+      stopOldReads()
+      edit.blocked = error?.status !== 400
+      edit.error = error?.status === 400 ? error.message : '删除结果尚未确认，请刷新列表核对，不会自动重复删除。'
+      return false
+    } finally {
+      if (!disposed) { edit.pending = false; edit.action = '' }
     }
   }
   function invalidateLists(savedState) {
@@ -142,5 +184,5 @@ export function useTaskInbox() {
     }
   }
   onBeforeUnmount(() => { disposed = true })
-  return { stateFor, submit, load, editFor, saveEdit, resetEdit }
+  return { stateFor, submit, load, editFor, saveEdit, resetEdit, setStatus, remove }
 }

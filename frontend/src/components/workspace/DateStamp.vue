@@ -6,14 +6,19 @@ const props = defineProps({
   value: { type: String, default: '' },
   label: { type: String, default: '保存时间' },
   compact: { type: Boolean, default: false },
+  agenda: { type: Boolean, default: false },
   showTime: { type: Boolean, default: true },
 })
 const date = computed(() => getDateParts(props.value))
 </script>
 
 <template>
-  <time v-if="date" class="date-stamp" :class="{ compact }" :datetime="date.datetime" :title="date.fullLabel" :aria-label="`${label ? label + '：' : ''}${date.fullLabel}`">
-    <template v-if="compact">
+  <time v-if="date" class="date-stamp" :class="{ compact: compact && !agenda, agenda }" :datetime="date.datetime" :title="date.fullLabel" :aria-label="`${label ? label + '：' : ''}${date.fullLabel}`">
+    <template v-if="agenda">
+      <span class="agenda-day" aria-hidden="true">{{ date.dayPadded }}</span>
+      <span class="agenda-copy" aria-hidden="true"><span class="agenda-month">{{ date.year }}年{{ date.month }}月</span><span class="agenda-schedule"><span>{{ date.weekday }}</span><span v-if="showTime && date.hasTime" class="agenda-time">{{ date.time }}</span></span></span>
+    </template>
+    <template v-else-if="compact">
       <svg class="date-inline-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="4.5" width="14" height="13" rx="3" /><path d="M6.5 2.5v4m7-4v4M3 9h14" /></svg>
       <span v-if="label" class="date-inline-label" aria-hidden="true">{{ label }}</span>
       <span class="date-inline-day" aria-hidden="true"><small>{{ date.year }}年</small><strong>{{ date.month }}月{{ date.day }}日</strong></span>
@@ -43,4 +48,10 @@ const date = computed(() => getDateParts(props.value))
 .date-inline-clock { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; color: var(--ink-700); background: color-mix(in srgb, var(--canvas-soft) 50%, transparent); border-radius: 6px; font-family: var(--display); font-size: 12px; font-weight: 500; white-space: nowrap; }
 .date-inline-clock svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
 .date-unknown { font-size: 12px; color: var(--ink-500); }
+.date-stamp.agenda { gap: 12px; font-family: var(--text-cn); white-space: nowrap; line-height: 1.4; }
+.agenda-day { min-width: 32px; color: var(--accent-deep); font-family: var(--display); font-size: 30px; font-weight: 400; letter-spacing: -.055em; line-height: 1; }
+.agenda-copy { display: grid; gap: 5px; padding-left: 12px; border-left: 1px solid var(--line-strong); }
+.agenda-month { color: var(--ink-500); font-size: 10px; letter-spacing: .035em; }
+.agenda-schedule { display: flex; align-items: baseline; gap: 10px; color: var(--ink-600); font-size: 11px; }
+.agenda-time { color: var(--ink); font-family: var(--display); font-size: 14px; font-weight: 500; letter-spacing: .02em; }
 </style>
